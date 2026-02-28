@@ -1,0 +1,1 @@
+export { LuminaireTable } from './LuminaireTable';

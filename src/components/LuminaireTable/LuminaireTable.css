@@ -1,0 +1,52 @@
+.luminaire-section {
+  overflow: hidden;
+}
+
+.luminaire-section.existing .card-title {
+  border-bottom-color: #6b7280;
+}
+
+.luminaire-section.new .card-title {
+  border-bottom-color: var(--color-secondary);
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-bottom: var(--spacing-md);
+}
+
+.data-table {
+  min-width: 700px;
+}
+
+.data-table input[type="text"] {
+  min-width: 150px;
+}
+
+.data-table input[type="number"] {
+  width: 80px;
+}
+
+.totals-row {
+  background-color: var(--color-background);
+}
+
+.totals-row td {
+  border-bottom: none;
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.input-with-unit .form-input {
+  flex: 1;
+}
+
+.input-unit {
+  font-size: 0.875rem;
+  color: #6b7280;
+  white-space: nowrap;
+}

@@ -1,0 +1,1 @@
+export { InvestmentSection } from './InvestmentSection';

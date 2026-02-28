@@ -1,0 +1,32 @@
+/* App-spezifische Styles */
+.app-container {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Sicherstellen, dass Sektionen gut aussehen */
+.card {
+  transition: box-shadow var(--transition-fast);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Footer / Autosave Indikator (optional) */
+.autosave-indicator {
+  position: fixed;
+  bottom: var(--spacing-md);
+  right: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.75rem;
+  color: #6b7280;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.autosave-indicator.visible {
+  opacity: 1;
+}
