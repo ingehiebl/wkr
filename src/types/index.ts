@@ -1,5 +1,34 @@
 // Typen für den Wirtschaftlichkeitsrechner
+// Version 2.0 - Updated gemäß AGENTS.md
 
+// ============================================
+// v2.0 NEW TYPES
+// ============================================
+
+// C06: Lampentyp für Leuchten Bestand
+export type LampType = 
+  | 'T5-549mm' 
+  | 'T5-1149mm' 
+  | 'T5-1449mm' 
+  | 'T8-600mm' 
+  | 'T8-1200mm' 
+  | 'T8-1500mm';
+
+// C06: Bestückung (1-flammig / 2-flammig)
+export type FlameCount = 1 | 2;
+
+// C07: Reduktionsstufen für Steuerung
+export type ReductionLevel = 0 | 10 | 20 | 30 | 40;
+
+// C06: Neue Struktur für Leuchten Bestand (v2.0)
+export interface ExistingLuminaire {
+  id: string;
+  quantity: number;
+  lampType: LampType;
+  flameCount: FlameCount;
+}
+
+// Leuchten Neu - behält die alte Struktur
 export interface Luminaire {
   id: string;
   name: string;
@@ -13,6 +42,12 @@ export interface LuminaireCalculated extends Luminaire {
   lumensEffective: number;
 }
 
+// C06: Berechnete Werte für Leuchten Bestand
+export interface ExistingLuminaireCalculated extends ExistingLuminaire {
+  powerW: number;
+  totalPowerW: number;
+}
+
 export interface ProjectData {
   projectName: string;
   roomUsage: string;
@@ -24,15 +59,16 @@ export interface ProjectData {
   co2FactorGPerKwh: number;
 }
 
+// C04: powerOverheadPercent REMOVED
 export interface LuminaireDefaults {
-  powerOverheadPercent: number;
   lumenFactorPercent: number;
   serviceLifeHours: number;
 }
 
+// C07: Boolean → ReductionLevel (percentage)
 export interface ControlSettings {
-  daylightControl: boolean;
-  motionControl: boolean;
+  daylightReductionPercent: ReductionLevel;
+  motionReductionPercent: ReductionLevel;
 }
 
 export interface InvestmentCosts {
@@ -77,8 +113,10 @@ export interface PaybackResult {
   netCashflow: number[];
 }
 
+// C02: Room usage with code
 export interface RoomUsageOption {
   label: string;
+  code: string;
   hoursPerYear: number | null; // null = benutzerdefiniert
 }
 
@@ -87,11 +125,17 @@ export interface Co2SourceOption {
   factorGPerKwh: number | null; // null = benutzerdefiniert
 }
 
+// C07: Control reduction options
+export interface ControlReductionOption {
+  label: string;
+  value: ReductionLevel;
+}
+
 export interface WkrState {
   projectData: ProjectData;
   existingDefaults: LuminaireDefaults;
   newDefaults: LuminaireDefaults;
-  existingLuminaires: Luminaire[];
+  existingLuminaires: ExistingLuminaire[]; // C06: Changed type
   newLuminaires: Luminaire[];
   controlSettings: ControlSettings;
   investmentCosts: InvestmentCosts;

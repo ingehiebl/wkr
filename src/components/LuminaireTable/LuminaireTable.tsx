@@ -12,16 +12,16 @@ interface LuminaireTableProps {
   defaults: LuminaireDefaults;
   onLuminairesChange: (luminaires: Luminaire[]) => void;
   onDefaultsChange: (defaults: Partial<LuminaireDefaults>) => void;
-  variant: 'existing' | 'new';
 }
 
+// C04: Diese Komponente wird nur noch für "Leuchten Neu" verwendet
+// Leistungsaufschlag wurde entfernt
 export const LuminaireTable: React.FC<LuminaireTableProps> = ({
   title,
   luminaires,
   defaults,
   onLuminairesChange,
   onDefaultsChange,
-  variant,
 }) => {
   const handleAddLuminaire = () => {
     onLuminairesChange([...luminaires, createEmptyLuminaire()]);
@@ -51,26 +51,11 @@ export const LuminaireTable: React.FC<LuminaireTableProps> = ({
   );
 
   return (
-    <section className={`card luminaire-section ${variant}`}>
+    <section className="card luminaire-section new">
       <h2 className="card-title">{title}</h2>
 
+      {/* C04: Leistungsaufschlag ENTFERNT */}
       <div className="defaults-bar">
-        <div className="form-group">
-          <label className="form-label">Leistungsaufschlag</label>
-          <div className="input-with-unit">
-            <input
-              type="number"
-              className="form-input"
-              value={defaults.powerOverheadPercent}
-              onChange={(e) =>
-                onDefaultsChange({ powerOverheadPercent: Number(e.target.value) })
-              }
-              min={0}
-            />
-            <span className="input-unit">%</span>
-          </div>
-        </div>
-
         <div className="form-group">
           <label className="form-label">Lumenfaktor</label>
           <div className="input-with-unit">

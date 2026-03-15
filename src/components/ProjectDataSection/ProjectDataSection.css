@@ -1,7 +1,19 @@
+/* v1.0 Grid - kept for backwards compatibility */
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--spacing-md);
+}
+
+/* v2.0 Grid - C05: Neues Layout */
+.project-grid-v2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.project-grid-v2 .full-width {
+  grid-column: 1 / -1;
 }
 
 .input-with-unit {
@@ -18,4 +30,11 @@
   font-size: 0.875rem;
   color: #6b7280;
   white-space: nowrap;
+}
+
+/* Responsive: Bei kleinen Bildschirmen alles untereinander */
+@media (max-width: 600px) {
+  .project-grid-v2 {
+    grid-template-columns: 1fr;
+  }
 }

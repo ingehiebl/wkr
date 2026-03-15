@@ -1,5 +1,5 @@
 // Berechnungsmodul für den Wirtschaftlichkeitsrechner
-// Alle Formeln gemäß AGENTS.md Abschnitt 4, 5 und 8
+// Version 2.0 - Alle Formeln gemäß AGENTS.md Abschnitt 4, 5 und 8
 
 import type { 
   Luminaire, 
@@ -7,18 +7,77 @@ import type {
   LuminaireDefaults,
   ComparisonResult,
   PaybackResult,
-  ControlSettings
+  ControlSettings,
+  ExistingLuminaire,
+  ExistingLuminaireCalculated,
+  LampType
 } from '../types';
-import { CONTROL_REDUCTIONS } from '../constants';
+import { LAMP_POWER_LOOKUP } from '../constants';
+
+// ============================================
+// C06: Neue Berechnung für Leuchten Bestand
+// ============================================
 
 /**
- * Berechnet die effektiven Werte einer Leuchte
+ * Holt die Leistung eines Lampentyps
+ */
+export function getLampPower(lampType: LampType): number {
+  return LAMP_POWER_LOOKUP[lampType];
+}
+
+/**
+ * Berechnet die Werte einer Bestandsleuchte (v2.0)
+ */
+export function calculateExistingLuminaire(
+  luminaire: ExistingLuminaire
+): ExistingLuminaireCalculated {
+  const powerW = getLampPower(luminaire.lampType);
+  const totalPowerW = luminaire.quantity * powerW * luminaire.flameCount;
+  
+  return {
+    ...luminaire,
+    powerW,
+    totalPowerW,
+  };
+}
+
+/**
+ * Berechnet die Gesamtleistung aller Bestandsleuchten in kW
+ */
+export function calculateExistingTotalPowerKw(
+  luminaires: ExistingLuminaireCalculated[]
+): number {
+  return luminaires.reduce(
+    (sum, lum) => sum + lum.totalPowerW,
+    0
+  ) / 1000;
+}
+
+/**
+ * Berechnet den jährlichen Energiebedarf für Bestand in kWh
+ */
+export function calculateExistingEnergyKwh(
+  luminaires: ExistingLuminaireCalculated[],
+  annualOperatingHours: number
+): number {
+  const totalPowerKw = calculateExistingTotalPowerKw(luminaires);
+  return totalPowerKw * annualOperatingHours;
+}
+
+// ============================================
+// Leuchten Neu Berechnungen (C04: powerOverhead entfernt)
+// ============================================
+
+/**
+ * Berechnet die effektiven Werte einer neuen Leuchte
+ * C04: powerOverheadPercent wurde entfernt
  */
 export function calculateLuminaire(
   luminaire: Luminaire,
   defaults: LuminaireDefaults
 ): LuminaireCalculated {
-  const totalPowerW = luminaire.powerW * (1 + defaults.powerOverheadPercent / 100);
+  // C04: Kein powerOverhead mehr - direkte Leistung
+  const totalPowerW = luminaire.powerW;
   const lumensEffective = luminaire.lumensNominal * (defaults.lumenFactorPercent / 100);
   
   return {
@@ -29,7 +88,7 @@ export function calculateLuminaire(
 }
 
 /**
- * Berechnet die Gesamtleistung aller Leuchten in kW
+ * Berechnet die Gesamtleistung aller neuen Leuchten in kW
  */
 export function calculateTotalPowerKw(
   luminaires: LuminaireCalculated[]
@@ -63,16 +122,20 @@ export function calculateEnergyKwh(
   return totalPowerKw * annualOperatingHours;
 }
 
+// ============================================
+// C07: Steuerung mit variablen Prozentsätzen
+// ============================================
+
 /**
  * Berechnet den Energiebedarf NEU mit Steuerung
- * Gemäß AGENTS.md Abschnitt 4.4
+ * C07: Verwendet jetzt variable Prozentsätze (0, 10, 20, 30, 40%)
  */
 export function calculateEnergyNewWithControls(
   energyKwhRaw: number,
   controlSettings: ControlSettings
 ): number {
-  const daylightReduction = controlSettings.daylightControl ? CONTROL_REDUCTIONS.daylight : 0;
-  const motionReduction = controlSettings.motionControl ? CONTROL_REDUCTIONS.motion : 0;
+  const daylightReduction = controlSettings.daylightReductionPercent;
+  const motionReduction = controlSettings.motionReductionPercent;
   
   // Berechnung gemäß Formel
   const energyAfterDaylight = energyKwhRaw * (1 - daylightReduction / 100);
@@ -83,6 +146,28 @@ export function calculateEnergyNewWithControls(
   // Minimum aus allen Varianten
   return Math.min(energyKwhRaw, energyAfterDaylight, energyAfterMotion);
 }
+
+/**
+ * Berechnet die kombinierte Reduktion durch Steuerung
+ */
+export function calculateTotalReduction(controlSettings: ControlSettings): number {
+  const daylightReduction = controlSettings.daylightReductionPercent;
+  const motionReduction = controlSettings.motionReductionPercent;
+  
+  if (daylightReduction === 0 && motionReduction === 0) {
+    return 0;
+  }
+  
+  // Sequentielle Anwendung: erst Tageslicht, dann Bewegung
+  const afterDaylight = 1 - (daylightReduction / 100);
+  const afterMotion = afterDaylight * (1 - motionReduction / 100);
+  
+  return Math.round((1 - afterMotion) * 100);
+}
+
+// ============================================
+// Allgemeine Berechnungsfunktionen
+// ============================================
 
 /**
  * Berechnet die Energiekosten
@@ -157,13 +242,23 @@ export function calculateNetCashflow(
   return cumulativeSavings.map(saving => saving - investmentTotalEur);
 }
 
+// ============================================
+// Hauptvergleichsfunktion (v2.0 Updated)
+// ============================================
+
 /**
- * Hauptfunktion: Vollständiger Vergleich Bestand vs. Neu
+ * Vollständiger Vergleich Bestand vs. Neu (v2.0)
+ * C04: Ohne powerOverhead
+ * C06: Mit neuer Bestandsstruktur
+ * C07: Mit variablen Steuerungsreduktionen
+ * 
+ * Hinweis: existingDefaults wird für Kompatibilität übergeben, aber in v2.0
+ * nicht mehr für powerOverhead verwendet (nur lumenFactor für Bestand entfällt ebenfalls)
  */
-export function calculateComparison(
-  existingLuminaires: Luminaire[],
+export function calculateComparisonV2(
+  existingLuminaires: ExistingLuminaire[],
   newLuminaires: Luminaire[],
-  existingDefaults: LuminaireDefaults,
+  _existingDefaults: LuminaireDefaults, // Für Kompatibilität, aber ungenutzt in v2.0
   newDefaults: LuminaireDefaults,
   annualOperatingHours: number,
   electricityPriceEur: number,
@@ -172,22 +267,53 @@ export function calculateComparison(
   co2FactorGPerKwh: number,
   controlSettings: ControlSettings
 ): ComparisonResult {
-  // Leuchten berechnen
-  const existingCalculated = existingLuminaires.map(l => calculateLuminaire(l, existingDefaults));
-  const newCalculated = newLuminaires.map(l => calculateLuminaire(l, newDefaults));
-  
-  // Bestand
-  const existingTotalPowerKw = calculateTotalPowerKw(existingCalculated);
-  const existingTotalLumens = calculateTotalLumens(existingCalculated);
-  const existingEnergyKwh = calculateEnergyKwh(existingCalculated, annualOperatingHours);
+  return calculateComparison(
+    existingLuminaires,
+    newLuminaires,
+    newDefaults,
+    annualOperatingHours,
+    electricityPriceEur,
+    maintenanceCostExistingEur,
+    maintenanceCostNewEur,
+    co2FactorGPerKwh,
+    controlSettings
+  );
+}
+
+/**
+ * Vollständiger Vergleich Bestand vs. Neu
+ * C04: Ohne powerOverhead
+ * C06: Mit neuer Bestandsstruktur
+ * C07: Mit variablen Steuerungsreduktionen
+ */
+export function calculateComparison(
+  existingLuminaires: ExistingLuminaire[],
+  newLuminaires: Luminaire[],
+  newDefaults: LuminaireDefaults,
+  annualOperatingHours: number,
+  electricityPriceEur: number,
+  maintenanceCostExistingEur: number,
+  maintenanceCostNewEur: number,
+  co2FactorGPerKwh: number,
+  controlSettings: ControlSettings
+): ComparisonResult {
+  // Bestand berechnen (C06: neue Struktur)
+  const existingCalculated = existingLuminaires.map(l => calculateExistingLuminaire(l));
+  const existingTotalPowerKw = calculateExistingTotalPowerKw(existingCalculated);
+  const existingEnergyKwh = calculateExistingEnergyKwh(existingCalculated, annualOperatingHours);
   const existingEnergyCostEur = calculateEnergyCost(existingEnergyKwh, electricityPriceEur);
   const existingTotalCostEur = existingEnergyCostEur + maintenanceCostExistingEur;
   const existingCo2Kg = calculateCo2Emissions(existingEnergyKwh, co2FactorGPerKwh);
   
-  // Neu
+  // Bestand hat keine Lumen mehr in v2.0 (wird als 0 behandelt)
+  const existingTotalLumens = 0;
+  
+  // Neu berechnen
+  const newCalculated = newLuminaires.map(l => calculateLuminaire(l, newDefaults));
   const newTotalPowerKw = calculateTotalPowerKw(newCalculated);
   const newTotalLumens = calculateTotalLumens(newCalculated);
   const newEnergyKwhRaw = calculateEnergyKwh(newCalculated, annualOperatingHours);
+  // C07: Variable Steuerungsreduktion
   const newEnergyKwh = calculateEnergyNewWithControls(newEnergyKwhRaw, controlSettings);
   const newEnergyCostEur = calculateEnergyCost(newEnergyKwh, electricityPriceEur);
   const newTotalCostEur = newEnergyCostEur + maintenanceCostNewEur;
@@ -263,6 +389,10 @@ export function calculatePayback(
     netCashflow,
   };
 }
+
+// ============================================
+// Formatierungsfunktionen
+// ============================================
 
 /**
  * Formatiert eine Zahl als Währung

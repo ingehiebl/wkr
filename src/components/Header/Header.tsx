@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { TrendingUp, Upload } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { TrendingUp } from 'lucide-react';
 import './Header.css';
 
 interface HeaderProps {
@@ -7,10 +7,12 @@ interface HeaderProps {
   onLogoChange: (logo: string | null) => void;
 }
 
+// C01: Header mit Hover-Upload-Verhalten
 export const Header: React.FC<HeaderProps> = ({ logo, onLogoChange }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isHovering, setIsHovering] = useState(false);
 
-  const handleLogoClick = () => {
+  const handleBrowseClick = () => {
     fileInputRef.current?.click();
   };
 
@@ -34,7 +36,12 @@ export const Header: React.FC<HeaderProps> = ({ logo, onLogoChange }) => {
           <span className="header-title">Wirtschaftlichkeitsrechner</span>
         </div>
         
-        <div className="header-logo-area" onClick={handleLogoClick}>
+        {/* C01: Upload-Bereich mit Hover-Verhalten */}
+        <div 
+          className="header-logo-area"
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -42,12 +49,23 @@ export const Header: React.FC<HeaderProps> = ({ logo, onLogoChange }) => {
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
-          {logo ? (
+          
+          {/* Logo-Vorschau wenn vorhanden */}
+          {logo && (
             <img src={logo} alt="Firmenlogo" className="header-logo" />
-          ) : (
-            <div className="header-logo-placeholder">
-              <Upload size={16} />
-              <span>Logo hochladen</span>
+          )}
+          
+          {/* C01: Upload-Feld erscheint bei Hover */}
+          {(isHovering || !logo) && (
+            <div className="header-upload-overlay">
+              <span className="upload-label">Logo upload</span>
+              <button 
+                className="btn-browse"
+                onClick={handleBrowseClick}
+                type="button"
+              >
+                Durchsuchen
+              </button>
             </div>
           )}
         </div>

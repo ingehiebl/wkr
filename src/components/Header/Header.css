@@ -37,13 +37,17 @@
   color: var(--color-primary);
 }
 
+/* C01: Logo-Bereich mit Hover-Verhalten */
 .header-logo-area {
-  cursor: pointer;
+  position: relative;
   display: flex;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   transition: background-color var(--transition-fast);
+  min-width: 180px;
+  min-height: 48px;
+  justify-content: flex-end;
 }
 
 .header-logo-area:hover {
@@ -56,6 +60,45 @@
   object-fit: contain;
 }
 
+/* C01: Upload-Overlay erscheint bei Hover */
+.header-upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-md);
+  border: 2px dashed #d1d5db;
+  padding: var(--spacing-sm);
+}
+
+.upload-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.btn-browse {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-secondary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.btn-browse:hover {
+  background-color: #008f8f;
+}
+
+/* Alte Stile für Kompatibilität */
 .header-logo-placeholder {
   display: flex;
   align-items: center;

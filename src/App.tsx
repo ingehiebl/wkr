@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Header } from './components/Header';
 import { ProjectDataSection } from './components/ProjectDataSection';
+import { ExistingLuminaireTable } from './components/ExistingLuminaireTable';
 import { LuminaireTable } from './components/LuminaireTable';
 import { ControlSection } from './components/ControlSection';
 import { ComparisonSection } from './components/ComparisonSection';
@@ -8,14 +9,13 @@ import { InvestmentSection } from './components/InvestmentSection';
 import { ResultsSection } from './components/ResultsSection';
 import { ChartsSection } from './components/ChartsSection';
 import { useWkrState } from './hooks/useWkrState';
-import { calculateComparison, calculatePayback } from './utils/calculations';
+import { calculateComparisonV2, calculatePayback } from './utils/calculations';
 import './App.css';
 
 function App() {
   const {
     state,
     updateProjectData,
-    updateExistingDefaults,
     updateNewDefaults,
     setExistingLuminaires,
     setNewLuminaires,
@@ -24,9 +24,9 @@ function App() {
     setCompanyLogo,
   } = useWkrState();
 
-  // Live-Berechnungen mit useMemo für Performance
+  // Live-Berechnungen mit useMemo für Performance (v2.0)
   const comparison = useMemo(() => {
-    return calculateComparison(
+    return calculateComparisonV2(
       state.existingLuminaires,
       state.newLuminaires,
       state.existingDefaults,
@@ -73,22 +73,19 @@ function App() {
           onChange={updateProjectData}
         />
 
-        <LuminaireTable
-          title="Leuchten Bestand"
+        {/* C06: New ExistingLuminaireTable component for Bestand */}
+        <ExistingLuminaireTable
           luminaires={state.existingLuminaires}
-          defaults={state.existingDefaults}
           onLuminairesChange={setExistingLuminaires}
-          onDefaultsChange={updateExistingDefaults}
-          variant="existing"
         />
 
+        {/* LuminaireTable now only used for Neu */}
         <LuminaireTable
           title="Leuchten Neu"
           luminaires={state.newLuminaires}
           defaults={state.newDefaults}
           onLuminairesChange={setNewLuminaires}
           onDefaultsChange={updateNewDefaults}
-          variant="new"
         />
 
         <ControlSection
@@ -103,7 +100,16 @@ function App() {
           onChange={updateInvestmentCosts}
         />
 
-        <ResultsSection comparison={comparison} payback={payback} />
+        {/* C08: ResultsSection now receives additional props for PDF export */}
+        <ResultsSection 
+          comparison={comparison} 
+          payback={payback}
+          projectData={state.projectData}
+          existingLuminaires={state.existingLuminaires}
+          newLuminaires={state.newLuminaires}
+          controlSettings={state.controlSettings}
+          investmentCosts={state.investmentCosts}
+        />
 
         <ChartsSection comparison={comparison} payback={payback} />
       </main>

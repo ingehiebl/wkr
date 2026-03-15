@@ -43,3 +43,20 @@
   font-size: 0.875rem;
   color: var(--color-secondary);
 }
+
+/* C07: Styles für Dropdown-Selects */
+.control-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background-color: white;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.control-select:focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 2px rgba(0, 166, 166, 0.1);
+}
