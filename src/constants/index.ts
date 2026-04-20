@@ -1,5 +1,5 @@
-// Lookup-Listen und Konstanten basierend auf AGENTS.md
-// Version 2.0
+// Lookup-Listen und Konstanten basierend auf App_Rechner_v3.pdf
+// Version 3.0
 
 import type { 
   RoomUsageOption, 
@@ -88,20 +88,27 @@ export const LAMP_TYPE_OPTIONS: { value: LampType; label: string }[] = [
   { value: 'T8-1500mm', label: 'T8 – 1500 mm' },
 ];
 
-export const FLAME_COUNT_OPTIONS: { value: 1 | 2; label: string }[] = [
+// V3-04: Bestückung erweitert (1-4 flammig)
+export const FLAME_COUNT_OPTIONS: { value: 1 | 2 | 3 | 4; label: string }[] = [
   { value: 1, label: '1-flammig' },
   { value: 2, label: '2-flammig' },
+  { value: 3, label: '3-flammig' },
+  { value: 4, label: '4-flammig' },
 ];
 
 // ============================================
-// C07: Steuerungs-Reduktionsstufen
+// V3-08: Steuerungs-Reduktionsstufen mit Bereichen und Mittelwerten
+// wenig 10-30% → Mittelwert 20%
+// mittel 31-50% → Mittelwert 40.5%
+// viel 51-70% → Mittelwert 60.5%
+// sehr viel >70% (70-100%) → Mittelwert 85%
 // ============================================
 export const CONTROL_REDUCTION_OPTIONS: ControlReductionOption[] = [
   { label: 'Keine (0%)', value: 0 },
-  { label: 'Wenig (10%)', value: 10 },
-  { label: 'Mittel (20%)', value: 20 },
-  { label: 'Viel (30%)', value: 30 },
-  { label: 'Sehr viel (40%)', value: 40 },
+  { label: 'Wenig (10-30%)', value: 20 },
+  { label: 'Mittel (31-50%)', value: 40.5 },
+  { label: 'Viel (51-70%)', value: 60.5 },
+  { label: 'Sehr viel (>70%)', value: 85 },
 ];
 
 // ============================================
@@ -137,7 +144,7 @@ export const DEFAULT_INVESTMENT = {
   installationEur: 0,
 };
 
-// C07: Default Steuerung mit neuen Prozent-Werten
+// V3-08: Default Steuerung mit neuen Mittelwert-Prozenten (0 = Keine)
 export const DEFAULT_CONTROL_SETTINGS = {
   daylightReductionPercent: 0 as ReductionLevel,
   motionReductionPercent: 0 as ReductionLevel,

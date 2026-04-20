@@ -19,6 +19,16 @@
   min-width: 700px;
 }
 
+/* V3-07: Matching column widths with Bestand table */
+.luminaire-table-new {
+  min-width: 800px;
+}
+
+.luminaire-table-new .col-narrow {
+  width: 120px;
+  max-width: 120px;
+}
+
 .data-table input[type="text"] {
   min-width: 150px;
 }

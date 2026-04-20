@@ -17,13 +17,26 @@ import {
   DEFAULT_INVESTMENT,
   createEmptyLuminaire,
   createEmptyExistingLuminaire,
+  CONTROL_REDUCTION_OPTIONS,
 } from '../constants';
 
 const STORAGE_KEY = 'wkr-state';
-const STORAGE_VERSION = 2; // v2.0 migration
+const STORAGE_VERSION = 3; // v3.0 migration
 
-// Migration: v1 ControlSettings (boolean) → v2 (ReductionLevel %)
-const migrateControlSettings = (settings: unknown): ControlSettings => {
+// V3-08: Map old reduction values to new midpoint values
+const mapReductionToV3 = (oldValue: number): ReductionLevel => {
+  // Old v2 values: 0, 10, 20, 30, 40
+  // New v3 values: 0, 20, 40.5, 60.5, 85
+  if (oldValue === 0) return 0;
+  if (oldValue <= 10) return 20;       // wenig (10-30%) → 20%
+  if (oldValue <= 20) return 20;       // Still wenig
+  if (oldValue <= 30) return 40.5;     // mittel (31-50%) → 40.5%
+  if (oldValue <= 40) return 60.5;     // viel (51-70%) → 60.5%
+  return 85;                           // sehr viel (>70%) → 85%
+};
+
+// Migration: v2 ControlSettings → v3 (new reduction levels)
+const migrateControlSettingsV2ToV3 = (settings: unknown): ControlSettings => {
   if (!settings || typeof settings !== 'object') {
     return DEFAULT_CONTROL_SETTINGS;
   }
@@ -31,18 +44,32 @@ const migrateControlSettings = (settings: unknown): ControlSettings => {
   const s = settings as Record<string, unknown>;
   
   // v1 format: { daylightEnabled: boolean, motionEnabled: boolean }
-  // v2 format: { daylightReductionPercent: ReductionLevel, motionReductionPercent: ReductionLevel }
   if ('daylightEnabled' in s || 'motionEnabled' in s) {
     return {
-      daylightReductionPercent: (s.daylightEnabled ? 30 : 0) as ReductionLevel,
-      motionReductionPercent: (s.motionEnabled ? 30 : 0) as ReductionLevel,
+      daylightReductionPercent: (s.daylightEnabled ? 40.5 : 0) as ReductionLevel, // Map "Ja (30%)" to mittel
+      motionReductionPercent: (s.motionEnabled ? 40.5 : 0) as ReductionLevel,
     };
   }
   
-  // Already v2 format
+  // v2 format with old values (0, 10, 20, 30, 40) - map to v3
+  const daylightVal = s.daylightReductionPercent as number ?? 0;
+  const motionVal = s.motionReductionPercent as number ?? 0;
+  
+  // Check if it's already a valid v3 value
+  const v3Values = CONTROL_REDUCTION_OPTIONS.map(o => o.value);
+  const isAlreadyV3 = v3Values.includes(daylightVal as ReductionLevel) && v3Values.includes(motionVal as ReductionLevel);
+  
+  if (isAlreadyV3) {
+    return {
+      daylightReductionPercent: daylightVal as ReductionLevel,
+      motionReductionPercent: motionVal as ReductionLevel,
+    };
+  }
+  
+  // Map old values to new v3 values
   return {
-    daylightReductionPercent: (s.daylightReductionPercent ?? 0) as ReductionLevel,
-    motionReductionPercent: (s.motionReductionPercent ?? 0) as ReductionLevel,
+    daylightReductionPercent: mapReductionToV3(daylightVal),
+    motionReductionPercent: mapReductionToV3(motionVal),
   };
 };
 
@@ -94,13 +121,17 @@ const getInitialState = (): WkrState => {
       const version = parsed._version || 1;
       
       if (version < STORAGE_VERSION) {
-        console.info('Migriere WKR-Daten von v1 zu v2...');
+        console.info(`Migriere WKR-Daten von v${version} zu v${STORAGE_VERSION}...`);
         
-        // Migrate control settings (C07)
-        const migratedControlSettings = migrateControlSettings(parsed.controlSettings);
+        // Migrate control settings (v1→v2→v3)
+        const migratedControlSettings = migrateControlSettingsV2ToV3(parsed.controlSettings);
         
-        // Migrate existing luminaires (C06)
+        // Migrate existing luminaires (v1→v2, v2 already has lampType)
         const migratedExistingLuminaires = migrateExistingLuminaires(parsed.existingLuminaires);
+        
+        // V3-21: Add photo arrays if missing
+        const existingPhotos = parsed.existingPhotos || [];
+        const newPhotos = parsed.newPhotos || [];
         
         // Return migrated state
         return {
@@ -112,16 +143,23 @@ const getInitialState = (): WkrState => {
           controlSettings: migratedControlSettings,
           investmentCosts: { ...DEFAULT_INVESTMENT, ...parsed.investmentCosts },
           companyLogo: parsed.companyLogo || null,
+          existingPhotos,
+          newPhotos,
         };
       }
       
-      return parsed;
+      // V3: Ensure photo arrays exist even in current version
+      return {
+        ...parsed,
+        existingPhotos: parsed.existingPhotos || [],
+        newPhotos: parsed.newPhotos || [],
+      };
     }
   } catch (e) {
     console.warn('Fehler beim Laden des gespeicherten Zustands:', e);
   }
 
-  // Standard-State (v2.0)
+  // Standard-State (v3.0)
   return {
     projectData: DEFAULT_PROJECT_DATA,
     existingDefaults: DEFAULT_EXISTING_LUMINAIRE,
@@ -131,6 +169,8 @@ const getInitialState = (): WkrState => {
     controlSettings: DEFAULT_CONTROL_SETTINGS,
     investmentCosts: DEFAULT_INVESTMENT,
     companyLogo: null,
+    existingPhotos: [],
+    newPhotos: [],
   };
 };
 
@@ -208,6 +248,21 @@ export function useWkrState() {
     }));
   }, []);
 
+  // V3-21: Photo update functions
+  const setExistingPhotos = useCallback((photos: string[]) => {
+    setState((prev) => ({
+      ...prev,
+      existingPhotos: photos,
+    }));
+  }, []);
+
+  const setNewPhotos = useCallback((photos: string[]) => {
+    setState((prev) => ({
+      ...prev,
+      newPhotos: photos,
+    }));
+  }, []);
+
   const resetState = useCallback(() => {
     const newState: WkrState = {
       projectData: DEFAULT_PROJECT_DATA,
@@ -218,6 +273,8 @@ export function useWkrState() {
       controlSettings: DEFAULT_CONTROL_SETTINGS,
       investmentCosts: DEFAULT_INVESTMENT,
       companyLogo: null,
+      existingPhotos: [],
+      newPhotos: [],
     };
     setState(newState);
     localStorage.removeItem(STORAGE_KEY);
@@ -233,6 +290,8 @@ export function useWkrState() {
     updateControlSettings,
     updateInvestmentCosts,
     setCompanyLogo,
+    setExistingPhotos,
+    setNewPhotos,
     resetState,
   };
 }

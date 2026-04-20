@@ -1,8 +1,8 @@
 // Typen für den Wirtschaftlichkeitsrechner
-// Version 2.0 - Updated gemäß AGENTS.md
+// Version 3.0 - Updated gemäß App_Rechner_v3.pdf
 
 // ============================================
-// v2.0 NEW TYPES
+// v3.0 TYPES
 // ============================================
 
 // C06: Lampentyp für Leuchten Bestand
@@ -14,11 +14,12 @@ export type LampType =
   | 'T8-1200mm' 
   | 'T8-1500mm';
 
-// C06: Bestückung (1-flammig / 2-flammig)
-export type FlameCount = 1 | 2;
+// V3-04: Bestückung erweitert (1-flammig bis 4-flammig)
+export type FlameCount = 1 | 2 | 3 | 4;
 
-// C07: Reduktionsstufen für Steuerung
-export type ReductionLevel = 0 | 10 | 20 | 30 | 40;
+// V3-08: Reduktionsstufen für Steuerung mit Mittelwerten der Bereiche
+// Keine (0%), Wenig (10-30% → 20%), Mittel (31-50% → 40.5%), Viel (51-70% → 60.5%), Sehr viel (>70% → 85%)
+export type ReductionLevel = 0 | 20 | 40.5 | 60.5 | 85;
 
 // C06: Neue Struktur für Leuchten Bestand (v2.0)
 export interface ExistingLuminaire {
@@ -140,4 +141,71 @@ export interface WkrState {
   controlSettings: ControlSettings;
   investmentCosts: InvestmentCosts;
   companyLogo: string | null;
+  // V3-21: Photo storage
+  existingPhotos: string[]; // Base64 or file paths
+  newPhotos: string[];
+}
+
+// ============================================
+// V3.0 NEW TYPES
+// ============================================
+
+// V3-09/V3-13: Variant data for comparison
+export interface VariantData {
+  totalPowerKw: number;
+  energyKwh: number;
+  totalLumens: number;
+  energyCostEur: number;
+  maintenanceCostEur: number;
+  totalCostEur: number;
+  co2Kg: number;
+  co2Tons: number; // V3-14: CO2 in Tonnen
+}
+
+// V3-13: Three-variant comparison result
+export interface ComparisonResultV3 {
+  existing: VariantData;
+  newWithoutControls: VariantData;
+  newWithControls: VariantData;
+  // Savings compared to existing
+  savingsWithoutControls: {
+    energyKwh: number;
+    costEur: number;
+    co2Kg: number;
+    co2Tons: number;
+    percent: number;
+  };
+  savingsWithControls: {
+    energyKwh: number;
+    costEur: number;
+    co2Kg: number;
+    co2Tons: number;
+    percent: number;
+  };
+}
+
+// V3-12/V3-20: Investment variants
+export interface InvestmentVariants {
+  withoutControls: number; // luminaires + installation
+  withControls: number;    // luminaires + controls + installation
+  total: number;           // Same as withControls (for backwards compat)
+}
+
+// V3-20: Dual payback result
+export interface PaybackResultV3 {
+  investment: InvestmentVariants;
+  savingsPerYear: {
+    withoutControls: number;
+    withControls: number;
+  };
+  paybackYears: {
+    withoutControls: number;
+    withControls: number;
+  };
+  serviceLifeYears: number;
+  // Chart data for both variants
+  cumulativeSavingsWithoutControls: number[];
+  cumulativeSavingsWithControls: number[];
+  netCashflowWithoutControls: number[];
+  netCashflowWithControls: number[];
 }

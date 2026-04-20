@@ -8,16 +8,22 @@
   --color-positive: #2E7D32;
   --color-negative: #C62828;
   
-  /* Schriftarten */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* V3-01: Visual differentiation for calculated/result fields */
+  --color-calculated-bg: #f0f4f8;
+  --color-calculated-border: #cbd5e1;
+  --color-input-bg: #ffffff;
+  --color-input-border: #d1d5db;
   
-  /* Abstände */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
-  --spacing-2xl: 3rem;
+  /* V3-03: Font similar to TSTAR Pro - Space Grotesk (geometric sans-serif) */
+  --font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* V3-02: Tighter spacing */
+  --spacing-xs: 0.2rem;
+  --spacing-sm: 0.4rem;
+  --spacing-md: 0.75rem;
+  --spacing-lg: 1.25rem;
+  --spacing-xl: 1.75rem;
+  --spacing-2xl: 2.5rem;
   
   /* Schatten */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -26,8 +32,8 @@
   
   /* Border Radius */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
   
   /* Übergänge */
   --transition-fast: 150ms ease;
@@ -59,31 +65,33 @@ body {
 }
 
 /* Utility-Klassen */
+/* V3-02: Tighter card spacing */
 .card {
   background-color: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
 }
 
 .card-title {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--color-primary);
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
   border-bottom: 2px solid var(--color-secondary);
 }
 
 /* Formular-Elemente */
+/* V3-02: Tighter spacing */
 .form-group {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
 }
 
 .form-label {
   display: block;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-primary);
   margin-bottom: var(--spacing-xs);
@@ -118,15 +126,16 @@ body {
 }
 
 /* Tabellen */
+/* V3-02: Tighter table spacing */
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
 }
 
 .data-table th,
 .data-table td {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -156,8 +165,45 @@ body {
 }
 
 .data-table .calculated {
-  background-color: var(--color-background);
+  background-color: var(--color-calculated-bg);
   font-weight: 500;
+}
+
+/* V3-01: Visual differentiation between input and calculated/result fields */
+.form-input.calculated,
+.form-input[readonly],
+.calculated-field {
+  background-color: var(--color-calculated-bg);
+  border-color: var(--color-calculated-border);
+  color: var(--color-primary);
+  font-weight: 500;
+  cursor: default;
+}
+
+.form-input.calculated:focus,
+.form-input[readonly]:focus,
+.calculated-field:focus {
+  border-color: var(--color-calculated-border);
+  box-shadow: none;
+}
+
+/* Result/output display fields (non-editable) */
+.result-field {
+  background-color: var(--color-calculated-bg);
+  border: 1px solid var(--color-calculated-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.result-field.positive {
+  color: var(--color-positive);
+}
+
+.result-field.negative {
+  color: var(--color-negative);
 }
 
 /* Buttons */

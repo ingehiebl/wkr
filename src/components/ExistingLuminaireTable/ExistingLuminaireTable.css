@@ -1,4 +1,4 @@
-/* C06: Styles for ExistingLuminaireTable */
+/* V3-04/V3-05/V3-06: Styles for ExistingLuminaireTable */
 
 .existing-luminaire-table {
   width: 100%;
@@ -24,6 +24,12 @@
 .existing-luminaire-table .total-power-cell {
   text-align: right;
   font-weight: 600;
+}
+
+/* V3-06: Narrower Gesamtleistung column */
+.existing-luminaire-table .col-narrow {
+  width: 120px;
+  max-width: 120px;
 }
 
 .existing-luminaire-table select {

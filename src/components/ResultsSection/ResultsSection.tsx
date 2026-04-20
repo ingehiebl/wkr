@@ -1,22 +1,41 @@
 import React from 'react';
-import type { ComparisonResult, PaybackResult, ProjectData, ExistingLuminaire, Luminaire, ControlSettings, InvestmentCosts } from '../../types';
-import { formatCurrency, formatNumber, formatPercent, calculateTotalReduction, calculateExistingLuminaire } from '../../utils/calculations';
+import type { 
+  ComparisonResultV3, 
+  PaybackResultV3, 
+  ProjectData, 
+  ExistingLuminaire, 
+  Luminaire, 
+  ControlSettings, 
+  InvestmentCosts 
+} from '../../types';
+import { 
+  formatCurrency, 
+  formatNumber, 
+  formatPercent, 
+  calculateTotalReduction, 
+  calculateExistingLuminaire,
+  calculateInvestmentVariants
+} from '../../utils/calculations';
 import { LAMP_POWER_LOOKUP, CONTROL_REDUCTION_OPTIONS } from '../../constants';
 import { TrendingDown, Leaf, Clock, Euro, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import './ResultsSection.css';
 
 interface ResultsSectionProps {
-  comparison: ComparisonResult;
-  payback: PaybackResult;
+  comparison: ComparisonResultV3;
+  payback: PaybackResultV3;
   projectData: ProjectData;
   existingLuminaires: ExistingLuminaire[];
   newLuminaires: Luminaire[];
   controlSettings: ControlSettings;
   investmentCosts: InvestmentCosts;
+  existingPhotos?: string[];
+  newPhotos?: string[];
 }
 
-// C08: PDF-Export Funktionalität
+// V3-13/V3-14/V3-15: Updated to 3-column table, Stromkosten, CO2 Tonnen, kacheln below
+// V3-16: Enhanced PDF export with charts and photos
 export const ResultsSection: React.FC<ResultsSectionProps> = ({ 
   comparison, 
   payback,
@@ -24,16 +43,20 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
   existingLuminaires,
   newLuminaires,
   controlSettings,
-  investmentCosts
+  investmentCosts,
+  existingPhotos = [],
+  newPhotos = [],
 }) => {
+  const investment = calculateInvestmentVariants(investmentCosts);
+  const hasControls = controlSettings.daylightReductionPercent > 0 || controlSettings.motionReductionPercent > 0;
 
-  const handlePdfExport = () => {
+  const handlePdfExport = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     let y = 20;
     const lineHeight = 7;
     const leftMargin = 20;
-    const rightCol = 110;
 
     // Helper Funktionen
     const addTitle = (text: string) => {
@@ -53,21 +76,95 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
       doc.setFontSize(10);
     };
 
-    const addRow = (label: string, value: string, col2Label?: string, col2Value?: string) => {
+    const addRow = (label: string, value: string) => {
       doc.text(label, leftMargin, y);
-      doc.text(value, leftMargin + 50, y);
-      if (col2Label && col2Value) {
-        doc.text(col2Label, rightCol, y);
-        doc.text(col2Value, rightCol + 50, y);
-      }
+      doc.text(value, leftMargin + 60, y);
       y += lineHeight;
     };
 
-    const checkPageBreak = () => {
-      if (y > 270) {
+    const checkPageBreak = (requiredSpace: number = 20) => {
+      if (y > pageHeight - requiredSpace) {
         doc.addPage();
         y = 20;
       }
+    };
+
+    // V3-16: Helper to capture and add chart image
+    const addChartImage = async (elementId: string, title: string) => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      try {
+        checkPageBreak(100);
+        
+        const canvas = await html2canvas(element, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pageWidth - (leftMargin * 2);
+        const imgHeight = (canvas.height / canvas.width) * imgWidth;
+        
+        // Check if we need a new page for this chart
+        if (y + imgHeight > pageHeight - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, leftMargin, y);
+        y += 8;
+        
+        doc.addImage(imgData, 'PNG', leftMargin, y, imgWidth, Math.min(imgHeight, 80));
+        y += Math.min(imgHeight, 80) + 10;
+      } catch (error) {
+        console.error(`Error capturing chart ${elementId}:`, error);
+      }
+    };
+
+    // V3-16: Helper to add photos
+    const addPhotos = (photos: string[], title: string) => {
+      if (photos.length === 0) return;
+      
+      checkPageBreak(60);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, leftMargin, y);
+      y += 8;
+      
+      const photoWidth = 35;
+      const photoHeight = 26;
+      const photosPerRow = 4;
+      
+      photos.forEach((photo, index) => {
+        const row = Math.floor(index / photosPerRow);
+        const col = index % photosPerRow;
+        const x = leftMargin + (col * (photoWidth + 5));
+        const photoY = y + (row * (photoHeight + 5));
+        
+        if (photoY + photoHeight > pageHeight - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        try {
+          doc.addImage(photo, 'JPEG', x, photoY, photoWidth, photoHeight);
+        } catch (error) {
+          // Try with PNG if JPEG fails
+          try {
+            doc.addImage(photo, 'PNG', x, photoY, photoWidth, photoHeight);
+          } catch (e) {
+            console.error('Error adding photo:', e);
+          }
+        }
+      });
+      
+      const rows = Math.ceil(photos.length / photosPerRow);
+      y += rows * (photoHeight + 5) + 5;
     };
 
     // Titel
@@ -90,14 +187,14 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
     addSection('Leuchten - Bestand');
     existingLuminaires.forEach((lum, idx) => {
       const calc = calculateExistingLuminaire(lum);
-      const flameText = lum.flameCount === 1 ? '1-flammig' : '2-flammig';
+      const flameText = `${lum.flameCount}-flammig`;
       addRow(
         `${idx + 1}. ${lum.quantity}x ${lum.lampType}`,
-        `${LAMP_POWER_LOOKUP[lum.lampType]}W, ${flameText} = ${calc.totalPowerW}W`
+        `${LAMP_POWER_LOOKUP[lum.lampType]}W, ${flameText} = ${formatNumber(calc.totalPowerW / 1000, 3)} kW`
       );
       checkPageBreak();
     });
-    addRow('Gesamtleistung Bestand:', `${formatNumber(comparison.existing.totalPowerKw * 1000, 0)} W`);
+    addRow('Gesamtleistung Bestand:', `${formatNumber(comparison.existing.totalPowerKw, 3)} kW`);
     checkPageBreak();
 
     // Leuchten Neu
@@ -105,11 +202,11 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
     newLuminaires.forEach((lum, idx) => {
       addRow(
         `${idx + 1}. ${lum.quantity}x ${lum.name || '(ohne Name)'}`,
-        `${lum.powerW}W = ${lum.quantity * lum.powerW}W`
+        `${lum.powerW}W = ${formatNumber((lum.quantity * lum.powerW) / 1000, 3)} kW`
       );
       checkPageBreak();
     });
-    addRow('Gesamtleistung Neu:', `${formatNumber(comparison.new.totalPowerKw * 1000, 0)} W`);
+    addRow('Gesamtleistung Neu:', `${formatNumber(comparison.newWithoutControls.totalPowerKw, 3)} kW`);
     checkPageBreak();
 
     // Steuerung
@@ -125,74 +222,93 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
     addSection('Investitionskosten');
     addRow('Leuchten:', formatCurrency(investmentCosts.luminairesEur));
     addRow('Steuerung:', formatCurrency(investmentCosts.controlsEur));
-    addRow('Einbau:', formatCurrency(investmentCosts.installationEur));
-    addRow('Gesamt:', formatCurrency(payback.investmentTotalEur));
+    addRow('Installation:', formatCurrency(investmentCosts.installationEur));
+    addRow('Gesamt (ohne Steuerung):', formatCurrency(investment.withoutControls));
+    addRow('Gesamt (mit Steuerung):', formatCurrency(investment.withControls));
     checkPageBreak();
 
-    // Ergebnisse
+    // V3-13: Ergebnisse mit 3 Spalten
     addSection('Ergebnisse');
     y += 3;
     
     // Tabellenkopf
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('Kostenart', leftMargin, y);
-    doc.text('Bestand', leftMargin + 45, y);
-    doc.text('Neu', leftMargin + 85, y);
-    doc.text('Einsparung', leftMargin + 125, y);
+    doc.text('', leftMargin, y);
+    doc.text('Bestand', leftMargin + 40, y);
+    doc.text('Neu ohne Stg.', leftMargin + 75, y);
+    doc.text('Neu mit Stg.', leftMargin + 115, y);
     y += lineHeight;
     doc.setFont('helvetica', 'normal');
 
     // Tabellenzeilen
-    addRow('Energiebedarf', 
-      `${formatNumber(comparison.existing.energyKwh, 0)} kWh`,
-      `${formatNumber(comparison.new.energyKwh, 0)} kWh`
-    );
-    doc.text(`${formatNumber(comparison.savings.energyKwh, 0)} kWh`, leftMargin + 125, y - lineHeight);
+    doc.text('Energiebedarf', leftMargin, y);
+    doc.text(`${formatNumber(comparison.existing.energyKwh, 0)} kWh`, leftMargin + 40, y);
+    doc.text(`${formatNumber(comparison.newWithoutControls.energyKwh, 0)} kWh`, leftMargin + 75, y);
+    doc.text(`${formatNumber(comparison.newWithControls.energyKwh, 0)} kWh`, leftMargin + 115, y);
+    y += lineHeight;
 
-    addRow('Energiekosten',
-      `${formatCurrency(comparison.existing.energyCostEur)}`,
-      `${formatCurrency(comparison.new.energyCostEur)}`
-    );
-    doc.text(`${formatCurrency(comparison.existing.energyCostEur - comparison.new.energyCostEur)}`, leftMargin + 125, y - lineHeight);
+    doc.text('Stromkosten', leftMargin, y);
+    doc.text(formatCurrency(comparison.existing.energyCostEur), leftMargin + 40, y);
+    doc.text(formatCurrency(comparison.newWithoutControls.energyCostEur), leftMargin + 75, y);
+    doc.text(formatCurrency(comparison.newWithControls.energyCostEur), leftMargin + 115, y);
+    y += lineHeight;
 
-    addRow('Wartungskosten',
-      `${formatCurrency(comparison.existing.maintenanceCostEur)}`,
-      `${formatCurrency(comparison.new.maintenanceCostEur)}`
-    );
-    doc.text(`${formatCurrency(comparison.existing.maintenanceCostEur - comparison.new.maintenanceCostEur)}`, leftMargin + 125, y - lineHeight);
+    doc.text('Einsparung zu Bestand', leftMargin, y);
+    doc.text('-', leftMargin + 40, y);
+    doc.text(formatCurrency(comparison.savingsWithoutControls.costEur), leftMargin + 75, y);
+    doc.text(formatCurrency(comparison.savingsWithControls.costEur), leftMargin + 115, y);
+    y += lineHeight;
 
-    doc.setFont('helvetica', 'bold');
-    addRow('Gesamtkosten',
-      `${formatCurrency(comparison.existing.totalCostEur)}`,
-      `${formatCurrency(comparison.new.totalCostEur)}`
-    );
-    doc.text(`${formatCurrency(comparison.savings.costEur)}`, leftMargin + 125, y - lineHeight);
-    doc.setFont('helvetica', 'normal');
-
-    addRow('CO2-Emissionen',
-      `${formatNumber(comparison.existing.co2Kg, 0)} kg`,
-      `${formatNumber(comparison.new.co2Kg, 0)} kg`
-    );
-    doc.text(`${formatNumber(comparison.savings.co2Kg, 0)} kg`, leftMargin + 125, y - lineHeight);
-    checkPageBreak();
+    // V3-14: CO2 in Tonnen
+    doc.text('CO2-Emissionen (t)', leftMargin, y);
+    doc.text(`${formatNumber(comparison.existing.co2Tons, 2)} t`, leftMargin + 40, y);
+    doc.text(`${formatNumber(comparison.newWithoutControls.co2Tons, 2)} t`, leftMargin + 75, y);
+    doc.text(`${formatNumber(comparison.newWithControls.co2Tons, 2)} t`, leftMargin + 115, y);
+    y += lineHeight * 2;
 
     // Kennzahlen
-    y += 5;
     addSection('Kennzahlen');
-    addRow('Jährliche Einsparung:', formatCurrency(comparison.savings.costEur));
-    addRow('Kostenreduktion:', formatPercent(comparison.savings.percent));
-    addRow('Amortisationszeit:', payback.paybackYears === Infinity ? '-' : `${formatNumber(payback.paybackYears, 1)} Jahre`);
-    addRow('CO2-Einsparung/Jahr:', `${formatNumber(comparison.savings.co2Kg, 0)} kg`);
+    addRow('Einsparung/Jahr (ohne Stg.):', formatCurrency(comparison.savingsWithoutControls.costEur));
+    addRow('Einsparung/Jahr (mit Stg.):', formatCurrency(comparison.savingsWithControls.costEur));
+    addRow('Amortisation (ohne Stg.):', payback.paybackYears.withoutControls === Infinity ? '-' : `${formatNumber(payback.paybackYears.withoutControls, 1)} Jahre`);
+    addRow('Amortisation (mit Stg.):', payback.paybackYears.withControls === Infinity ? '-' : `${formatNumber(payback.paybackYears.withControls, 1)} Jahre`);
+    addRow('CO2-Einsparung/Jahr (mit Stg.):', `${formatNumber(comparison.savingsWithControls.co2Tons, 2)} t`);
 
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(128);
-    doc.text(
-      'Erstellt mit Wirtschaftlichkeitsrechner v2.0',
-      pageWidth / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
+    // V3-16: Add charts to PDF
+    doc.addPage();
+    y = 20;
+    addTitle('Grafiken');
+    y += 5;
+
+    await addChartImage('chart-cost-comparison', 'Jährliche Kosten: Bestand vs. Neu');
+    await addChartImage('chart-cumulative-costs', 'Kumulierte Stromkosten');
+    await addChartImage('chart-net-cashflow', 'Netto-Cashflow');
+
+    // V3-16: Add photos to PDF
+    if (existingPhotos.length > 0 || newPhotos.length > 0) {
+      doc.addPage();
+      y = 20;
+      addTitle('Fotos');
+      y += 5;
+
+      addPhotos(existingPhotos, 'Leuchten Bestand');
+      addPhotos(newPhotos, 'Leuchten Neu');
+    }
+
+    // Footer on all pages
+    const totalPages = doc.internal.pages.length - 1;
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(128);
+      doc.text(
+        `Wirtschaftlichkeitsrechner v3.0 - Seite ${i} von ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
 
     // PDF speichern
     const filename = projectData.projectName 
@@ -212,13 +328,57 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
         </button>
       </div>
 
-      {/* Key Metrics */}
-      <div className="results-highlights">
+      {/* V3-13: Three-column comparison table */}
+      <div className="table-container">
+        <table className="comparison-table results-table results-table-v3">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Bestand</th>
+              <th>Neu ohne Steuerung</th>
+              <th>Neu mit Steuerung</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Energiebedarf</td>
+              <td>{formatNumber(comparison.existing.energyKwh, 0)} kWh/Jahr</td>
+              <td>{formatNumber(comparison.newWithoutControls.energyKwh, 0)} kWh/Jahr</td>
+              <td>{formatNumber(comparison.newWithControls.energyKwh, 0)} kWh/Jahr</td>
+            </tr>
+            {/* V3-14: "Stromkosten" instead of "Energiekosten" */}
+            <tr>
+              <td>Stromkosten</td>
+              <td>{formatCurrency(comparison.existing.energyCostEur)}/Jahr</td>
+              <td>{formatCurrency(comparison.newWithoutControls.energyCostEur)}/Jahr</td>
+              <td>{formatCurrency(comparison.newWithControls.energyCostEur)}/Jahr</td>
+            </tr>
+            <tr className="savings-row">
+              <td>Einsparung zu Bestand</td>
+              <td className="muted">-</td>
+              <td className="savings-cell">{formatCurrency(comparison.savingsWithoutControls.costEur)}/Jahr</td>
+              <td className="savings-cell">{formatCurrency(comparison.savingsWithControls.costEur)}/Jahr</td>
+            </tr>
+            {/* V3-14: CO2 in Tonnen */}
+            <tr>
+              <td>CO₂-Emissionen</td>
+              <td>{formatNumber(comparison.existing.co2Tons, 2)} t/Jahr</td>
+              <td>{formatNumber(comparison.newWithoutControls.co2Tons, 2)} t/Jahr</td>
+              <td>{formatNumber(comparison.newWithControls.co2Tons, 2)} t/Jahr</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* V3-15: Highlight cards ("Kacheln") placed BELOW the table */}
+      <div className="results-highlights results-highlights-below">
         <div className="highlight-card">
           <Euro className="highlight-icon savings" />
           <div className="highlight-content">
-            <div className="highlight-value positive">{formatCurrency(comparison.savings.costEur)}</div>
-            <div className="highlight-label">Einsparung pro Jahr</div>
+            <div className="highlight-value positive">
+              {formatCurrency(hasControls ? comparison.savingsWithControls.costEur : comparison.savingsWithoutControls.costEur)}
+            </div>
+            <div className="highlight-label">Einsparung pro Jahr {hasControls ? '(mit Stg.)' : ''}</div>
           </div>
         </div>
 
@@ -226,16 +386,20 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
           <Clock className="highlight-icon" />
           <div className="highlight-content">
             <div className="highlight-value">
-              {payback.paybackYears === Infinity ? '-' : formatNumber(payback.paybackYears, 1)} Jahre
+              {(hasControls ? payback.paybackYears.withControls : payback.paybackYears.withoutControls) === Infinity 
+                ? '-' 
+                : `${formatNumber(hasControls ? payback.paybackYears.withControls : payback.paybackYears.withoutControls, 1)} Jahre`}
             </div>
-            <div className="highlight-label">Amortisationszeit</div>
+            <div className="highlight-label">Amortisationszeit {hasControls ? '(mit Stg.)' : ''}</div>
           </div>
         </div>
 
         <div className="highlight-card">
           <TrendingDown className="highlight-icon energy" />
           <div className="highlight-content">
-            <div className="highlight-value">{formatPercent(comparison.savings.percent)}</div>
+            <div className="highlight-value">
+              {formatPercent(hasControls ? comparison.savingsWithControls.percent : comparison.savingsWithoutControls.percent)}
+            </div>
             <div className="highlight-label">Kostenreduktion</div>
           </div>
         </div>
@@ -243,61 +407,52 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
         <div className="highlight-card">
           <Leaf className="highlight-icon co2" />
           <div className="highlight-content">
-            <div className="highlight-value positive">{formatNumber(comparison.savings.co2Kg, 0)} kg</div>
-            <div className="highlight-label">CO2-Einsparung pro Jahr</div>
+            <div className="highlight-value positive">
+              {formatNumber(hasControls ? comparison.savingsWithControls.co2Tons : comparison.savingsWithoutControls.co2Tons, 2)} t
+            </div>
+            <div className="highlight-label">CO₂-Einsparung pro Jahr</div>
           </div>
         </div>
       </div>
 
-      {/* Detailed Table */}
-      <div className="table-container">
-        <table className="comparison-table results-table">
-          <thead>
-            <tr>
-              <th>Kostenart</th>
-              <th>Bestand</th>
-              <th>Neu</th>
-              <th>Einsparung</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Energiebedarf</td>
-              <td>{formatNumber(comparison.existing.energyKwh, 0)} kWh/Jahr</td>
-              <td>{formatNumber(comparison.new.energyKwh, 0)} kWh/Jahr</td>
-              <td className="savings-cell">{formatNumber(comparison.savings.energyKwh, 0)} kWh/Jahr</td>
-            </tr>
-            <tr>
-              <td>Energiekosten</td>
-              <td>{formatCurrency(comparison.existing.energyCostEur)}/Jahr</td>
-              <td>{formatCurrency(comparison.new.energyCostEur)}/Jahr</td>
-              <td className="savings-cell">
-                {formatCurrency(comparison.existing.energyCostEur - comparison.new.energyCostEur)}/Jahr
-              </td>
-            </tr>
-            <tr>
-              <td>Wartungskosten</td>
-              <td>{formatCurrency(comparison.existing.maintenanceCostEur)}/Jahr</td>
-              <td>{formatCurrency(comparison.new.maintenanceCostEur)}/Jahr</td>
-              <td className="savings-cell">
-                {formatCurrency(comparison.existing.maintenanceCostEur - comparison.new.maintenanceCostEur)}/Jahr
-              </td>
-            </tr>
-            <tr className="total-row">
-              <td><strong>Gesamtkosten</strong></td>
-              <td><strong>{formatCurrency(comparison.existing.totalCostEur)}/Jahr</strong></td>
-              <td><strong>{formatCurrency(comparison.new.totalCostEur)}/Jahr</strong></td>
-              <td className="savings-cell"><strong>{formatCurrency(comparison.savings.costEur)}/Jahr</strong></td>
-            </tr>
-            <tr>
-              <td>CO2-Emissionen</td>
-              <td>{formatNumber(comparison.existing.co2Kg, 0)} kg/Jahr</td>
-              <td>{formatNumber(comparison.new.co2Kg, 0)} kg/Jahr</td>
-              <td className="savings-cell">{formatNumber(comparison.savings.co2Kg, 0)} kg/Jahr</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {/* Show both variants if controls are enabled */}
+      {hasControls && (
+        <div className="variant-comparison">
+          <h3 className="variant-title">Vergleich der Varianten</h3>
+          <div className="variant-grid">
+            <div className="variant-card">
+              <div className="variant-header">Ohne Steuerung</div>
+              <div className="variant-row">
+                <span>Investition:</span>
+                <span>{formatCurrency(investment.withoutControls)}</span>
+              </div>
+              <div className="variant-row">
+                <span>Einsparung/Jahr:</span>
+                <span>{formatCurrency(comparison.savingsWithoutControls.costEur)}</span>
+              </div>
+              <div className="variant-row">
+                <span>Amortisation:</span>
+                <span>{payback.paybackYears.withoutControls === Infinity ? '-' : `${formatNumber(payback.paybackYears.withoutControls, 1)} Jahre`}</span>
+              </div>
+            </div>
+            <div className="variant-card variant-card-highlight">
+              <div className="variant-header">Mit Steuerung</div>
+              <div className="variant-row">
+                <span>Investition:</span>
+                <span>{formatCurrency(investment.withControls)}</span>
+              </div>
+              <div className="variant-row">
+                <span>Einsparung/Jahr:</span>
+                <span>{formatCurrency(comparison.savingsWithControls.costEur)}</span>
+              </div>
+              <div className="variant-row">
+                <span>Amortisation:</span>
+                <span>{payback.paybackYears.withControls === Infinity ? '-' : `${formatNumber(payback.paybackYears.withControls, 1)} Jahre`}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
