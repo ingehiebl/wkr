@@ -9,7 +9,7 @@ interface PhotoSectionProps {
   onNewPhotosChange: (photos: string[]) => void;
 }
 
-const MAX_PHOTOS = 5;
+const MAX_PHOTOS = 10;
 
 // V3-21: Photo upload section with small tiles that enlarge on hover
 export const PhotoSection: React.FC<PhotoSectionProps> = ({
@@ -99,7 +99,7 @@ export const PhotoSection: React.FC<PhotoSectionProps> = ({
               onClick={() => inputRef.current?.click()}
             >
               <Camera size={24} />
-              <span>Foto hinzufügen</span>
+              <span>Fotos uploaden</span>
             </div>
           )}
         </div>

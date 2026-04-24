@@ -12,7 +12,8 @@
   --color-calculated-bg: #f0f4f8;
   --color-calculated-border: #cbd5e1;
   --color-input-bg: #ffffff;
-  --color-input-border: #d1d5db;
+  --color-input-border: #4b5563;
+  --color-result-border: #00A6A6;
   
   /* V3-03: Font similar to TSTAR Pro - Space Grotesk (geometric sans-serif) */
   --font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -80,7 +81,7 @@ body {
   color: var(--color-primary);
   margin-bottom: var(--spacing-sm);
   padding-bottom: var(--spacing-xs);
-  border-bottom: 2px solid var(--color-secondary);
+  /* V4: removed green border-bottom */
 }
 
 /* Formular-Elemente */
@@ -103,7 +104,7 @@ body {
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 0.875rem;
   font-family: var(--font-family);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-input-border);
   border-radius: var(--radius-md);
   background-color: var(--color-card);
   color: var(--color-primary);
@@ -169,12 +170,12 @@ body {
   font-weight: 500;
 }
 
-/* V3-01: Visual differentiation between input and calculated/result fields */
+/* V4: Visual differentiation - result fields with blue border */
 .form-input.calculated,
 .form-input[readonly],
 .calculated-field {
   background-color: var(--color-calculated-bg);
-  border-color: var(--color-calculated-border);
+  border-color: var(--color-result-border);
   color: var(--color-primary);
   font-weight: 500;
   cursor: default;
@@ -183,14 +184,14 @@ body {
 .form-input.calculated:focus,
 .form-input[readonly]:focus,
 .calculated-field:focus {
-  border-color: var(--color-calculated-border);
+  border-color: var(--color-result-border);
   box-shadow: none;
 }
 
 /* Result/output display fields (non-editable) */
 .result-field {
   background-color: var(--color-calculated-bg);
-  border: 1px solid var(--color-calculated-border);
+  border: 1px solid var(--color-result-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 0.875rem;

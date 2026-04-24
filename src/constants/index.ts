@@ -1,11 +1,11 @@
-// Lookup-Listen und Konstanten basierend auf App_Rechner_v3.pdf
-// Version 3.0
+// Lookup-Listen und Konstanten basierend auf App_Rechner_v4.pdf
+// Version 4.0
 
 import type { 
   RoomUsageOption, 
   Co2SourceOption, 
   LuminaireDefaults,
-  LampType,
+  LampTypeWithPower,
   ControlReductionOption,
   ReductionLevel
 } from '../types';
@@ -68,24 +68,34 @@ export const CO2_SOURCE_OPTIONS: Co2SourceOption[] = [
 ];
 
 // ============================================
-// C06: Lampentyp-Leistung Lookup
+// V4: Combined Lampentyp/Länge/Leistung Lookup
+// Each entry is a unique type+length+wattage combination
 // ============================================
-export const LAMP_POWER_LOOKUP: Record<LampType, number> = {
-  'T5-549mm': 14,
-  'T5-1149mm': 28,
-  'T5-1449mm': 35,
-  'T8-600mm': 18,
-  'T8-1200mm': 36,
-  'T8-1500mm': 58,
+export const LAMP_TYPE_POWER_LOOKUP: Record<LampTypeWithPower, number> = {
+  'T5-549mm-14W': 14,
+  'T5-549mm-24W': 24,
+  'T5-1149mm-28W': 28,
+  'T5-1149mm-54W': 54,
+  'T5-1449mm-35W': 35,
+  'T5-1449mm-49W': 49,
+  'T5-1449mm-80W': 80,
+  'T8-600mm-18W': 18,
+  'T8-1200mm-36W': 36,
+  'T8-1500mm-58W': 58,
 };
 
-export const LAMP_TYPE_OPTIONS: { value: LampType; label: string }[] = [
-  { value: 'T5-549mm', label: 'T5 – 549 mm' },
-  { value: 'T5-1149mm', label: 'T5 – 1149 mm' },
-  { value: 'T5-1449mm', label: 'T5 – 1449 mm' },
-  { value: 'T8-600mm', label: 'T8 – 600 mm' },
-  { value: 'T8-1200mm', label: 'T8 – 1200 mm' },
-  { value: 'T8-1500mm', label: 'T8 – 1500 mm' },
+// V4: Combined dropdown options showing type + length + wattage
+export const LAMP_TYPE_OPTIONS: { value: LampTypeWithPower; label: string }[] = [
+  { value: 'T5-549mm-14W', label: 'T5 – 549 mm – 14 W' },
+  { value: 'T5-549mm-24W', label: 'T5 – 549 mm – 24 W' },
+  { value: 'T5-1149mm-28W', label: 'T5 – 1149 mm – 28 W' },
+  { value: 'T5-1149mm-54W', label: 'T5 – 1149 mm – 54 W' },
+  { value: 'T5-1449mm-35W', label: 'T5 – 1449 mm – 35 W' },
+  { value: 'T5-1449mm-49W', label: 'T5 – 1449 mm – 49 W' },
+  { value: 'T5-1449mm-80W', label: 'T5 – 1449 mm – 80 W' },
+  { value: 'T8-600mm-18W', label: 'T8 – 600 mm – 18 W' },
+  { value: 'T8-1200mm-36W', label: 'T8 – 1200 mm – 36 W' },
+  { value: 'T8-1500mm-58W', label: 'T8 – 1500 mm – 58 W' },
 ];
 
 // V3-04: Bestückung erweitert (1-4 flammig)
@@ -111,37 +121,27 @@ export const CONTROL_REDUCTION_OPTIONS: ControlReductionOption[] = [
   { label: 'Sehr viel (>70%)', value: 85 },
 ];
 
-// ============================================
-// C04: Leistungsaufschlag ENTFERNT
-// ============================================
-export const DEFAULT_EXISTING_LUMINAIRE: LuminaireDefaults = {
-  // powerOverheadPercent: 10, // REMOVED in v2.0
-  lumenFactorPercent: 53,
-  serviceLifeHours: 10000,
-};
-
+// V4: Removed lumenFactorPercent (Lumenfaktor deleted)
 export const DEFAULT_NEW_LUMINAIRE: LuminaireDefaults = {
-  // powerOverheadPercent: 0, // REMOVED in v2.0
-  lumenFactorPercent: 100,
   serviceLifeHours: 50000,
 };
 
-// C02: Default Raumnutzung mit neuer Liste
+// V4: Default Projektdaten - removed maintenance costs
 export const DEFAULT_PROJECT_DATA = {
   projectName: '',
   roomUsage: 'Einzelbüro (A.1)',
   annualOperatingHours: 2750,
   electricityPriceEur: 0.25,
-  maintenanceCostExistingEur: 500,
-  maintenanceCostNewEur: 100,
   co2Source: 'EU Strommix',
   co2FactorGPerKwh: 250,
 };
 
+// V4: Restructured investment - 4 input fields
 export const DEFAULT_INVESTMENT = {
   luminairesEur: 0,
+  installationLuminairesEur: 0,
   controlsEur: 0,
-  installationEur: 0,
+  installationControlsEur: 0,
 };
 
 // V3-08: Default Steuerung mit neuen Mittelwert-Prozenten (0 = Keine)
@@ -155,19 +155,18 @@ export const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
 };
 
-// C06: Neue Funktion für leere Bestandsleuchte
+// V4: Neue Funktion für leere Bestandsleuchte (uses combined type)
 export const createEmptyExistingLuminaire = () => ({
   id: generateId(),
   quantity: 1,
-  lampType: 'T8-1200mm' as LampType,
+  lampType: 'T8-1200mm-36W' as LampTypeWithPower,
   flameCount: 1 as const,
 });
 
-// Beispiel-Leuchte für Neu (behält alte Struktur)
+// V4: Simplified - no more lumensNominal
 export const createEmptyLuminaire = () => ({
   id: generateId(),
   name: '',
   quantity: 1,
   powerW: 0,
-  lumensNominal: 0,
 });

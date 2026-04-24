@@ -1,8 +1,8 @@
 import React from 'react';
-import type { ExistingLuminaire, LampType, FlameCount } from '../../types';
-import { calculateExistingLuminaire } from '../../utils/calculations';
+import type { ExistingLuminaire, LampTypeWithPower, FlameCount } from '../../types';
+import { calculateExistingLuminaire, getLampPower } from '../../utils/calculations';
 import { Plus, Trash2 } from 'lucide-react';
-import { createEmptyExistingLuminaire, LAMP_TYPE_OPTIONS, FLAME_COUNT_OPTIONS, LAMP_POWER_LOOKUP } from '../../constants';
+import { createEmptyExistingLuminaire, LAMP_TYPE_OPTIONS, FLAME_COUNT_OPTIONS } from '../../constants';
 import { formatNumber } from '../../utils/calculations';
 import './ExistingLuminaireTable.css';
 
@@ -11,7 +11,7 @@ interface ExistingLuminaireTableProps {
   onLuminairesChange: (luminaires: ExistingLuminaire[]) => void;
 }
 
-// V3-04/V3-05/V3-06: Updated column order, 3/4-flammig support, kW display
+// V4: Combined lamp type dropdown, Math.ceil for Gesamtleistung
 export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
   luminaires,
   onLuminairesChange,
@@ -27,7 +27,7 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
   const handleLuminaireChange = (
     id: string, 
     field: keyof ExistingLuminaire, 
-    value: number | LampType | FlameCount
+    value: number | LampTypeWithPower | FlameCount
   ) => {
     onLuminairesChange(
       luminaires.map((l) =>
@@ -43,14 +43,12 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
     0
   );
   
-  // V3-06: Convert to kW
   const totalPowerKw = totalPowerW / 1000;
 
   return (
     <section className="card luminaire-section existing">
       <h2 className="card-title">Leuchten – Bestand</h2>
 
-      {/* V3-05: Column order changed - Lampentyp/Länge first, then Stück */}
       <div className="table-container">
         <table className="data-table existing-luminaire-table">
           <thead>
@@ -66,12 +64,11 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
           <tbody>
             {calculatedLuminaires.map((lum) => (
               <tr key={lum.id}>
-                {/* V3-05: Lampentyp/Länge now first */}
                 <td>
                   <select
                     value={lum.lampType}
                     onChange={(e) =>
-                      handleLuminaireChange(lum.id, 'lampType', e.target.value as LampType)
+                      handleLuminaireChange(lum.id, 'lampType', e.target.value as LampTypeWithPower)
                     }
                     className="lamp-type-select"
                   >
@@ -94,10 +91,9 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
                   />
                 </td>
                 <td className="calculated power-cell">
-                  {LAMP_POWER_LOOKUP[lum.lampType]}
+                  {getLampPower(lum.lampType)}
                 </td>
                 <td>
-                  {/* V3-04: Now includes 3-flammig and 4-flammig */}
                   <select
                     value={lum.flameCount}
                     onChange={(e) =>
@@ -112,7 +108,6 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
                     ))}
                   </select>
                 </td>
-                {/* V3-06: Display in kW */}
                 <td className="calculated total-power-cell col-narrow">
                   {formatNumber(lum.totalPowerW / 1000, 3)}
                 </td>
@@ -131,7 +126,6 @@ export const ExistingLuminaireTable: React.FC<ExistingLuminaireTableProps> = ({
           <tfoot>
             <tr className="totals-row">
               <td colSpan={4}><strong>Summe</strong></td>
-              {/* V3-06: Total in kW */}
               <td className="calculated col-narrow"><strong>{formatNumber(totalPowerKw, 3)} kW</strong></td>
               <td></td>
             </tr>

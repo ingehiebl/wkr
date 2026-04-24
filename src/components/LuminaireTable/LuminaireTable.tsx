@@ -14,7 +14,7 @@ interface LuminaireTableProps {
   onDefaultsChange: (defaults: Partial<LuminaireDefaults>) => void;
 }
 
-// V3-07: Updated to display kW and match column widths with ExistingLuminaireTable
+// V4: Removed Lumenfaktor and Lumen columns entirely
 export const LuminaireTable: React.FC<LuminaireTableProps> = ({
   title,
   luminaires,
@@ -44,37 +44,15 @@ export const LuminaireTable: React.FC<LuminaireTableProps> = ({
     (sum, l) => sum + l.quantity * l.totalPowerW,
     0
   );
-  const totalLumens = calculatedLuminaires.reduce(
-    (sum, l) => sum + l.quantity * l.lumensEffective,
-    0
-  );
   
-  // V3-07: Convert to kW
   const totalPowerKw = totalPowerW / 1000;
 
   return (
     <section className="card luminaire-section new">
       <h2 className="card-title">{title}</h2>
 
-      {/* Default settings bar */}
+      {/* V4: Only Nutzungsdauer in defaults bar (Lumenfaktor removed) */}
       <div className="defaults-bar">
-        <div className="form-group">
-          <label className="form-label">Lumenfaktor</label>
-          <div className="input-with-unit">
-            <input
-              type="number"
-              className="form-input"
-              value={defaults.lumenFactorPercent}
-              onChange={(e) =>
-                onDefaultsChange({ lumenFactorPercent: Number(e.target.value) })
-              }
-              min={0}
-              max={100}
-            />
-            <span className="input-unit">%</span>
-          </div>
-        </div>
-
         <div className="form-group">
           <label className="form-label">Nutzungsdauer</label>
           <div className="input-with-unit">
@@ -99,10 +77,7 @@ export const LuminaireTable: React.FC<LuminaireTableProps> = ({
               <th>Leuchte</th>
               <th>Stück</th>
               <th>Leistung (W)</th>
-              {/* V3-07: Changed from "Gesamt (W)" to "Gesamtleistung (kW)" */}
               <th className="calculated col-narrow">Gesamtleistung (kW)</th>
-              <th>Lumen (nominal)</th>
-              <th className="calculated">Lumen (eff.)</th>
               <th></th>
             </tr>
           </thead>
@@ -139,22 +114,8 @@ export const LuminaireTable: React.FC<LuminaireTableProps> = ({
                     min={0}
                   />
                 </td>
-                {/* V3-07: Display in kW */}
                 <td className="calculated col-narrow">
                   {formatNumber((lum.quantity * lum.totalPowerW) / 1000, 3)}
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={lum.lumensNominal}
-                    onChange={(e) =>
-                      handleLuminaireChange(lum.id, 'lumensNominal', Number(e.target.value))
-                    }
-                    min={0}
-                  />
-                </td>
-                <td className="calculated">
-                  {formatNumber(lum.quantity * lum.lumensEffective, 0)}
                 </td>
                 <td>
                   <button
@@ -171,10 +132,7 @@ export const LuminaireTable: React.FC<LuminaireTableProps> = ({
           <tfoot>
             <tr className="totals-row">
               <td colSpan={3}><strong>Summe</strong></td>
-              {/* V3-07: Total in kW */}
               <td className="calculated col-narrow"><strong>{formatNumber(totalPowerKw, 3)} kW</strong></td>
-              <td></td>
-              <td className="calculated"><strong>{formatNumber(totalLumens, 0)} lm</strong></td>
               <td></td>
             </tr>
           </tfoot>

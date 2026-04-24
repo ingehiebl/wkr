@@ -1,11 +1,25 @@
 // Typen für den Wirtschaftlichkeitsrechner
-// Version 3.0 - Updated gemäß App_Rechner_v3.pdf
+// Version 4.0 - Updated gemäß App_Rechner_v4.pdf
 
 // ============================================
-// v3.0 TYPES
+// v4.0 TYPES
 // ============================================
 
-// C06: Lampentyp für Leuchten Bestand
+// V4: Combined Lampentyp/Länge/Leistung as single dropdown key
+// Each entry represents a unique combination of lamp type, length, and wattage
+export type LampTypeWithPower =
+  | 'T5-549mm-14W'
+  | 'T5-549mm-24W'
+  | 'T5-1149mm-28W'
+  | 'T5-1149mm-54W'
+  | 'T5-1449mm-35W'
+  | 'T5-1449mm-49W'
+  | 'T5-1449mm-80W'
+  | 'T8-600mm-18W'
+  | 'T8-1200mm-36W'
+  | 'T8-1500mm-58W';
+
+// Keep old LampType for backwards compatibility during migration
 export type LampType = 
   | 'T5-549mm' 
   | 'T5-1149mm' 
@@ -21,48 +35,45 @@ export type FlameCount = 1 | 2 | 3 | 4;
 // Keine (0%), Wenig (10-30% → 20%), Mittel (31-50% → 40.5%), Viel (51-70% → 60.5%), Sehr viel (>70% → 85%)
 export type ReductionLevel = 0 | 20 | 40.5 | 60.5 | 85;
 
-// C06: Neue Struktur für Leuchten Bestand (v2.0)
+// V4: Leuchten Bestand - now uses combined LampTypeWithPower
 export interface ExistingLuminaire {
   id: string;
   quantity: number;
-  lampType: LampType;
+  lampType: LampTypeWithPower;
   flameCount: FlameCount;
 }
 
-// Leuchten Neu - behält die alte Struktur
+// V4: Leuchten Neu - removed lumensNominal (Lumen columns deleted)
 export interface Luminaire {
   id: string;
   name: string;
   quantity: number;
   powerW: number;
-  lumensNominal: number;
 }
 
+// V4: Simplified - no more lumens
 export interface LuminaireCalculated extends Luminaire {
   totalPowerW: number;
-  lumensEffective: number;
 }
 
-// C06: Berechnete Werte für Leuchten Bestand
+// Berechnete Werte für Leuchten Bestand
 export interface ExistingLuminaireCalculated extends ExistingLuminaire {
   powerW: number;
   totalPowerW: number;
 }
 
+// V4: Removed maintenanceCostExistingEur and maintenanceCostNewEur
 export interface ProjectData {
   projectName: string;
   roomUsage: string;
   annualOperatingHours: number;
   electricityPriceEur: number;
-  maintenanceCostExistingEur: number;
-  maintenanceCostNewEur: number;
   co2Source: string;
   co2FactorGPerKwh: number;
 }
 
-// C04: powerOverheadPercent REMOVED
+// V4: Removed lumenFactorPercent from defaults (Lumenfaktor deleted for Neu)
 export interface LuminaireDefaults {
-  lumenFactorPercent: number;
   serviceLifeHours: number;
 }
 
@@ -72,10 +83,12 @@ export interface ControlSettings {
   motionReductionPercent: ReductionLevel;
 }
 
+// V4: Restructured investment costs - 4 input fields
 export interface InvestmentCosts {
   luminairesEur: number;
+  installationLuminairesEur: number;
   controlsEur: number;
-  installationEur: number;
+  installationControlsEur: number;
 }
 
 export interface ComparisonResult {
@@ -84,7 +97,6 @@ export interface ComparisonResult {
     energyKwh: number;
     totalLumens: number;
     energyCostEur: number;
-    maintenanceCostEur: number;
     totalCostEur: number;
     co2Kg: number;
   };
@@ -93,7 +105,6 @@ export interface ComparisonResult {
     energyKwh: number;
     totalLumens: number;
     energyCostEur: number;
-    maintenanceCostEur: number;
     totalCostEur: number;
     co2Kg: number;
   };
@@ -134,32 +145,29 @@ export interface ControlReductionOption {
 
 export interface WkrState {
   projectData: ProjectData;
-  existingDefaults: LuminaireDefaults;
   newDefaults: LuminaireDefaults;
-  existingLuminaires: ExistingLuminaire[]; // C06: Changed type
+  existingLuminaires: ExistingLuminaire[];
   newLuminaires: Luminaire[];
   controlSettings: ControlSettings;
   investmentCosts: InvestmentCosts;
   companyLogo: string | null;
-  // V3-21: Photo storage
-  existingPhotos: string[]; // Base64 or file paths
+  existingPhotos: string[];
   newPhotos: string[];
 }
 
 // ============================================
-// V3.0 NEW TYPES
+// V4.0 TYPES
 // ============================================
 
-// V3-09/V3-13: Variant data for comparison
+// V4: Variant data - removed maintenance
 export interface VariantData {
   totalPowerKw: number;
   energyKwh: number;
   totalLumens: number;
   energyCostEur: number;
-  maintenanceCostEur: number;
   totalCostEur: number;
   co2Kg: number;
-  co2Tons: number; // V3-14: CO2 in Tonnen
+  co2Tons: number;
 }
 
 // V3-13: Three-variant comparison result
@@ -167,7 +175,6 @@ export interface ComparisonResultV3 {
   existing: VariantData;
   newWithoutControls: VariantData;
   newWithControls: VariantData;
-  // Savings compared to existing
   savingsWithoutControls: {
     energyKwh: number;
     costEur: number;
@@ -184,11 +191,13 @@ export interface ComparisonResultV3 {
   };
 }
 
-// V3-12/V3-20: Investment variants
+// V4: Investment variants - restructured
 export interface InvestmentVariants {
-  withoutControls: number; // luminaires + installation
-  withControls: number;    // luminaires + controls + installation
-  total: number;           // Same as withControls (for backwards compat)
+  luminairesTotal: number;  // luminaires + installation luminaires
+  controlsTotal: number;    // controls + installation controls
+  withoutControls: number;  // = luminairesTotal
+  withControls: number;     // = luminairesTotal + controlsTotal
+  total: number;            // = withControls
 }
 
 // V3-20: Dual payback result
@@ -203,7 +212,6 @@ export interface PaybackResultV3 {
     withControls: number;
   };
   serviceLifeYears: number;
-  // Chart data for both variants
   cumulativeSavingsWithoutControls: number[];
   cumulativeSavingsWithControls: number[];
   netCashflowWithoutControls: number[];

@@ -1,5 +1,5 @@
 // Berechnungsmodul für den Wirtschaftlichkeitsrechner
-// Version 3.0 - Alle Formeln gemäß App_Rechner_v3.pdf
+// Version 4.0 - Alle Formeln gemäß App_Rechner_v4.pdf
 
 import type { 
   Luminaire, 
@@ -10,28 +10,28 @@ import type {
   ControlSettings,
   ExistingLuminaire,
   ExistingLuminaireCalculated,
-  LampType,
+  LampTypeWithPower,
   ComparisonResultV3,
   PaybackResultV3,
   InvestmentVariants,
   VariantData,
   InvestmentCosts
 } from '../types';
-import { LAMP_POWER_LOOKUP } from '../constants';
+import { LAMP_TYPE_POWER_LOOKUP } from '../constants';
 
 // ============================================
-// C06: Neue Berechnung für Leuchten Bestand
+// V4: Berechnung für Leuchten Bestand (combined type+power)
 // ============================================
 
 /**
- * Holt die Leistung eines Lampentyps
+ * Holt die Leistung eines Lampentyps (V4: combined key)
  */
-export function getLampPower(lampType: LampType): number {
-  return LAMP_POWER_LOOKUP[lampType];
+export function getLampPower(lampType: LampTypeWithPower): number {
+  return LAMP_TYPE_POWER_LOOKUP[lampType] || 0;
 }
 
 /**
- * Berechnet die Werte einer Bestandsleuchte (v2.0)
+ * Berechnet die Werte einer Bestandsleuchte
  */
 export function calculateExistingLuminaire(
   luminaire: ExistingLuminaire
@@ -70,25 +70,22 @@ export function calculateExistingEnergyKwh(
 }
 
 // ============================================
-// Leuchten Neu Berechnungen (C04: powerOverhead entfernt)
+// V4: Leuchten Neu Berechnungen (simplified - no lumen, no powerOverhead)
 // ============================================
 
 /**
  * Berechnet die effektiven Werte einer neuen Leuchte
- * C04: powerOverheadPercent wurde entfernt
+ * V4: Removed lumen calculation entirely
  */
 export function calculateLuminaire(
   luminaire: Luminaire,
-  defaults: LuminaireDefaults
+  _defaults: LuminaireDefaults
 ): LuminaireCalculated {
-  // C04: Kein powerOverhead mehr - direkte Leistung
   const totalPowerW = luminaire.powerW;
-  const lumensEffective = luminaire.lumensNominal * (defaults.lumenFactorPercent / 100);
   
   return {
     ...luminaire,
     totalPowerW,
-    lumensEffective,
   };
 }
 
@@ -105,18 +102,6 @@ export function calculateTotalPowerKw(
 }
 
 /**
- * Berechnet die Gesamt-Lumen
- */
-export function calculateTotalLumens(
-  luminaires: LuminaireCalculated[]
-): number {
-  return luminaires.reduce(
-    (sum, lum) => sum + (lum.quantity * lum.lumensEffective),
-    0
-  );
-}
-
-/**
  * Berechnet den jährlichen Energiebedarf in kWh
  */
 export function calculateEnergyKwh(
@@ -128,12 +113,11 @@ export function calculateEnergyKwh(
 }
 
 // ============================================
-// V3-08: Steuerung mit Bereichs-Mittelwerten
+// V3-08/V4: Steuerung mit Bereichs-Mittelwerten
 // ============================================
 
 /**
  * Berechnet den Energiebedarf NEU mit Steuerung
- * V3-08: Verwendet jetzt Mittelwerte der Bereiche (0, 20, 40.5, 60.5, 85%)
  */
 export function calculateEnergyNewWithControls(
   energyKwhRaw: number,
@@ -142,8 +126,6 @@ export function calculateEnergyNewWithControls(
   const daylightReduction = controlSettings.daylightReductionPercent;
   const motionReduction = controlSettings.motionReductionPercent;
   
-  // V3 Berechnung gemäß Formel:
-  // energyNewWithControls = energyNewWithoutControlsKwh * (1 - daylightReduction/100) * (1 - motionReduction/100)
   const energyWithControls = energyKwhRaw * (1 - daylightReduction / 100) * (1 - motionReduction / 100);
   
   return energyWithControls;
@@ -160,7 +142,6 @@ export function calculateTotalReduction(controlSettings: ControlSettings): numbe
     return 0;
   }
   
-  // Sequentielle Anwendung: erst Tageslicht, dann Bewegung
   const afterDaylight = 1 - (daylightReduction / 100);
   const afterMotion = afterDaylight * (1 - motionReduction / 100);
   
@@ -171,9 +152,6 @@ export function calculateTotalReduction(controlSettings: ControlSettings): numbe
 // Allgemeine Berechnungsfunktionen
 // ============================================
 
-/**
- * Berechnet die Energiekosten
- */
 export function calculateEnergyCost(
   energyKwh: number,
   electricityPriceEur: number
@@ -181,9 +159,6 @@ export function calculateEnergyCost(
   return energyKwh * electricityPriceEur;
 }
 
-/**
- * Berechnet die CO₂-Emissionen in kg
- */
 export function calculateCo2Emissions(
   energyKwh: number,
   co2FactorGPerKwh: number
@@ -191,9 +166,6 @@ export function calculateCo2Emissions(
   return (energyKwh * co2FactorGPerKwh) / 1000;
 }
 
-/**
- * Berechnet das Gesamtinvestment
- */
 export function calculateTotalInvestment(
   luminairesEur: number,
   controlsEur: number,
@@ -202,9 +174,6 @@ export function calculateTotalInvestment(
   return luminairesEur + controlsEur + installationEur;
 }
 
-/**
- * Berechnet die Nutzungsdauer in Jahren
- */
 export function calculateServiceLifeYears(
   serviceLifeHours: number,
   annualOperatingHours: number
@@ -213,9 +182,6 @@ export function calculateServiceLifeYears(
   return serviceLifeHours / annualOperatingHours;
 }
 
-/**
- * Berechnet die Payback-Zeit in Jahren
- */
 export function calculatePaybackYears(
   investmentTotalEur: number,
   savingsPerYearEur: number
@@ -224,9 +190,6 @@ export function calculatePaybackYears(
   return investmentTotalEur / savingsPerYearEur;
 }
 
-/**
- * Berechnet die kumulierten Einsparungen pro Jahr
- */
 export function calculateCumulativeSavings(
   savingsPerYearEur: number,
   years: number
@@ -234,9 +197,6 @@ export function calculateCumulativeSavings(
   return Array.from({ length: years + 1 }, (_, y) => y * savingsPerYearEur);
 }
 
-/**
- * Berechnet den Netto-Cashflow pro Jahr
- */
 export function calculateNetCashflow(
   cumulativeSavings: number[],
   investmentTotalEur: number
@@ -245,83 +205,33 @@ export function calculateNetCashflow(
 }
 
 // ============================================
-// Hauptvergleichsfunktion (v2.0 Updated)
+// V2/V3 legacy comparison (kept for backwards compat)
 // ============================================
 
-/**
- * Vollständiger Vergleich Bestand vs. Neu (v2.0)
- * C04: Ohne powerOverhead
- * C06: Mit neuer Bestandsstruktur
- * C07: Mit variablen Steuerungsreduktionen
- * 
- * Hinweis: existingDefaults wird für Kompatibilität übergeben, aber in v2.0
- * nicht mehr für powerOverhead verwendet (nur lumenFactor für Bestand entfällt ebenfalls)
- */
-export function calculateComparisonV2(
-  existingLuminaires: ExistingLuminaire[],
-  newLuminaires: Luminaire[],
-  _existingDefaults: LuminaireDefaults, // Für Kompatibilität, aber ungenutzt in v2.0
-  newDefaults: LuminaireDefaults,
-  annualOperatingHours: number,
-  electricityPriceEur: number,
-  maintenanceCostExistingEur: number,
-  maintenanceCostNewEur: number,
-  co2FactorGPerKwh: number,
-  controlSettings: ControlSettings
-): ComparisonResult {
-  return calculateComparison(
-    existingLuminaires,
-    newLuminaires,
-    newDefaults,
-    annualOperatingHours,
-    electricityPriceEur,
-    maintenanceCostExistingEur,
-    maintenanceCostNewEur,
-    co2FactorGPerKwh,
-    controlSettings
-  );
-}
-
-/**
- * Vollständiger Vergleich Bestand vs. Neu
- * C04: Ohne powerOverhead
- * C06: Mit neuer Bestandsstruktur
- * C07: Mit variablen Steuerungsreduktionen
- */
 export function calculateComparison(
   existingLuminaires: ExistingLuminaire[],
   newLuminaires: Luminaire[],
   newDefaults: LuminaireDefaults,
   annualOperatingHours: number,
   electricityPriceEur: number,
-  maintenanceCostExistingEur: number,
-  maintenanceCostNewEur: number,
   co2FactorGPerKwh: number,
   controlSettings: ControlSettings
 ): ComparisonResult {
-  // Bestand berechnen (C06: neue Struktur)
   const existingCalculated = existingLuminaires.map(l => calculateExistingLuminaire(l));
   const existingTotalPowerKw = calculateExistingTotalPowerKw(existingCalculated);
   const existingEnergyKwh = calculateExistingEnergyKwh(existingCalculated, annualOperatingHours);
   const existingEnergyCostEur = calculateEnergyCost(existingEnergyKwh, electricityPriceEur);
-  const existingTotalCostEur = existingEnergyCostEur + maintenanceCostExistingEur;
+  const existingTotalCostEur = existingEnergyCostEur;
   const existingCo2Kg = calculateCo2Emissions(existingEnergyKwh, co2FactorGPerKwh);
   
-  // Bestand hat keine Lumen mehr in v2.0 (wird als 0 behandelt)
-  const existingTotalLumens = 0;
-  
-  // Neu berechnen
   const newCalculated = newLuminaires.map(l => calculateLuminaire(l, newDefaults));
   const newTotalPowerKw = calculateTotalPowerKw(newCalculated);
-  const newTotalLumens = calculateTotalLumens(newCalculated);
   const newEnergyKwhRaw = calculateEnergyKwh(newCalculated, annualOperatingHours);
-  // C07: Variable Steuerungsreduktion
   const newEnergyKwh = calculateEnergyNewWithControls(newEnergyKwhRaw, controlSettings);
   const newEnergyCostEur = calculateEnergyCost(newEnergyKwh, electricityPriceEur);
-  const newTotalCostEur = newEnergyCostEur + maintenanceCostNewEur;
+  const newTotalCostEur = newEnergyCostEur;
   const newCo2Kg = calculateCo2Emissions(newEnergyKwh, co2FactorGPerKwh);
   
-  // Einsparungen
   const savingsEnergyKwh = existingEnergyKwh - newEnergyKwh;
   const savingsCostEur = existingTotalCostEur - newTotalCostEur;
   const savingsCo2Kg = existingCo2Kg - newCo2Kg;
@@ -333,18 +243,16 @@ export function calculateComparison(
     existing: {
       totalPowerKw: existingTotalPowerKw,
       energyKwh: existingEnergyKwh,
-      totalLumens: existingTotalLumens,
+      totalLumens: 0,
       energyCostEur: existingEnergyCostEur,
-      maintenanceCostEur: maintenanceCostExistingEur,
       totalCostEur: existingTotalCostEur,
       co2Kg: existingCo2Kg,
     },
     new: {
       totalPowerKw: newTotalPowerKw,
       energyKwh: newEnergyKwh,
-      totalLumens: newTotalLumens,
+      totalLumens: 0,
       energyCostEur: newEnergyCostEur,
-      maintenanceCostEur: maintenanceCostNewEur,
       totalCostEur: newTotalCostEur,
       co2Kg: newCo2Kg,
     },
@@ -357,9 +265,6 @@ export function calculateComparison(
   };
 }
 
-/**
- * Berechnet Payback und Cashflow-Daten
- */
 export function calculatePayback(
   investmentLuminairesEur: number,
   investmentControlsEur: number,
@@ -377,7 +282,6 @@ export function calculatePayback(
   const serviceLifeYears = Math.ceil(calculateServiceLifeYears(serviceLifeHours, annualOperatingHours));
   const paybackYears = calculatePaybackYears(investmentTotalEur, savingsPerYearEur);
   
-  // Berechne für Grafik
   const years = Math.max(serviceLifeYears, Math.ceil(paybackYears) + 2, 10);
   const cumulativeSavings = calculateCumulativeSavings(savingsPerYearEur, years);
   const netCashflow = calculateNetCashflow(cumulativeSavings, investmentTotalEur);
@@ -396,9 +300,6 @@ export function calculatePayback(
 // Formatierungsfunktionen
 // ============================================
 
-/**
- * Formatiert eine Zahl als Währung
- */
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
@@ -408,9 +309,6 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-/**
- * Formatiert eine Zahl mit Tausendertrennzeichen
- */
 export function formatNumber(value: number, decimals: number = 0): string {
   return new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: decimals,
@@ -418,9 +316,6 @@ export function formatNumber(value: number, decimals: number = 0): string {
   }).format(value);
 }
 
-/**
- * Formatiert eine Zahl als Prozent
- */
 export function formatPercent(value: number, decimals: number = 1): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'percent',
@@ -430,20 +325,24 @@ export function formatPercent(value: number, decimals: number = 1): string {
 }
 
 // ============================================
-// V3.0 NEW FUNCTIONS
+// V4 FUNCTIONS
 // ============================================
 
 /**
- * V3-12: Berechnet die Investitionsvarianten
+ * V4: Berechnet die Investitionsvarianten (restructured)
  */
 export function calculateInvestmentVariants(costs: InvestmentCosts): InvestmentVariants {
-  const withoutControls = costs.luminairesEur + costs.installationEur;
-  const withControls = costs.luminairesEur + costs.controlsEur + costs.installationEur;
+  const luminairesTotal = costs.luminairesEur + costs.installationLuminairesEur;
+  const controlsTotal = costs.controlsEur + costs.installationControlsEur;
+  const withoutControls = luminairesTotal;
+  const withControls = luminairesTotal + controlsTotal;
   
   return {
+    luminairesTotal,
+    controlsTotal,
     withoutControls,
     withControls,
-    total: withControls, // For backwards compatibility
+    total: withControls,
   };
 }
 
@@ -455,10 +354,7 @@ export function co2KgToTons(kg: number): number {
 }
 
 /**
- * V3-09/V3-13: Vollständiger Vergleich mit drei Varianten
- * - Bestand
- * - Neu ohne Steuerung
- * - Neu mit Steuerung
+ * V4: Vollständiger Vergleich mit drei Varianten (no maintenance)
  */
 export function calculateComparisonV3(
   existingLuminaires: ExistingLuminaire[],
@@ -466,8 +362,6 @@ export function calculateComparisonV3(
   newDefaults: LuminaireDefaults,
   annualOperatingHours: number,
   electricityPriceEur: number,
-  maintenanceCostExistingEur: number,
-  maintenanceCostNewEur: number,
   co2FactorGPerKwh: number,
   controlSettings: ControlSettings
 ): ComparisonResultV3 {
@@ -476,15 +370,14 @@ export function calculateComparisonV3(
   const existingTotalPowerKw = calculateExistingTotalPowerKw(existingCalculated);
   const existingEnergyKwh = calculateExistingEnergyKwh(existingCalculated, annualOperatingHours);
   const existingEnergyCostEur = calculateEnergyCost(existingEnergyKwh, electricityPriceEur);
-  const existingTotalCostEur = existingEnergyCostEur + maintenanceCostExistingEur;
+  const existingTotalCostEur = existingEnergyCostEur;
   const existingCo2Kg = calculateCo2Emissions(existingEnergyKwh, co2FactorGPerKwh);
   
   const existing: VariantData = {
     totalPowerKw: existingTotalPowerKw,
     energyKwh: existingEnergyKwh,
-    totalLumens: 0, // Bestand has no lumens in v3
+    totalLumens: 0,
     energyCostEur: existingEnergyCostEur,
-    maintenanceCostEur: maintenanceCostExistingEur,
     totalCostEur: existingTotalCostEur,
     co2Kg: existingCo2Kg,
     co2Tons: co2KgToTons(existingCo2Kg),
@@ -493,37 +386,34 @@ export function calculateComparisonV3(
   // ======== NEU berechnen ========
   const newCalculated = newLuminaires.map(l => calculateLuminaire(l, newDefaults));
   const newTotalPowerKw = calculateTotalPowerKw(newCalculated);
-  const newTotalLumens = calculateTotalLumens(newCalculated);
   
-  // Energie ohne Steuerung (V3-09: Variante A)
+  // Energie ohne Steuerung
   const newEnergyWithoutControlsKwh = calculateEnergyKwh(newCalculated, annualOperatingHours);
   const newEnergyCostWithoutControlsEur = calculateEnergyCost(newEnergyWithoutControlsKwh, electricityPriceEur);
-  const newTotalCostWithoutControlsEur = newEnergyCostWithoutControlsEur + maintenanceCostNewEur;
+  const newTotalCostWithoutControlsEur = newEnergyCostWithoutControlsEur;
   const newCo2WithoutControlsKg = calculateCo2Emissions(newEnergyWithoutControlsKwh, co2FactorGPerKwh);
   
   const newWithoutControls: VariantData = {
     totalPowerKw: newTotalPowerKw,
     energyKwh: newEnergyWithoutControlsKwh,
-    totalLumens: newTotalLumens,
+    totalLumens: 0,
     energyCostEur: newEnergyCostWithoutControlsEur,
-    maintenanceCostEur: maintenanceCostNewEur,
     totalCostEur: newTotalCostWithoutControlsEur,
     co2Kg: newCo2WithoutControlsKg,
     co2Tons: co2KgToTons(newCo2WithoutControlsKg),
   };
   
-  // Energie mit Steuerung (V3-09: Variante B)
+  // Energie mit Steuerung
   const newEnergyWithControlsKwh = calculateEnergyNewWithControls(newEnergyWithoutControlsKwh, controlSettings);
   const newEnergyCostWithControlsEur = calculateEnergyCost(newEnergyWithControlsKwh, electricityPriceEur);
-  const newTotalCostWithControlsEur = newEnergyCostWithControlsEur + maintenanceCostNewEur;
+  const newTotalCostWithControlsEur = newEnergyCostWithControlsEur;
   const newCo2WithControlsKg = calculateCo2Emissions(newEnergyWithControlsKwh, co2FactorGPerKwh);
   
   const newWithControls: VariantData = {
     totalPowerKw: newTotalPowerKw,
     energyKwh: newEnergyWithControlsKwh,
-    totalLumens: newTotalLumens,
+    totalLumens: 0,
     energyCostEur: newEnergyCostWithControlsEur,
-    maintenanceCostEur: maintenanceCostNewEur,
     totalCostEur: newTotalCostWithControlsEur,
     co2Kg: newCo2WithControlsKg,
     co2Tons: co2KgToTons(newCo2WithControlsKg),
@@ -560,7 +450,7 @@ export function calculateComparisonV3(
 }
 
 /**
- * V3-20: Berechnet Payback und Cashflow-Daten für beide Varianten
+ * V4: Berechnet Payback und Cashflow-Daten für beide Varianten
  */
 export function calculatePaybackV3(
   investmentCosts: InvestmentCosts,
@@ -576,11 +466,14 @@ export function calculatePaybackV3(
   const paybackWithoutControls = calculatePaybackYears(investment.withoutControls, savingsPerYearWithoutControls);
   const paybackWithControls = calculatePaybackYears(investment.withControls, savingsPerYearWithControls);
   
-  // Berechne für Grafik - use maximum of all relevant years
+  // V4: ~14 years for charts
   const years = Math.max(
     serviceLifeYears, 
-    Math.ceil(Math.min(paybackWithoutControls, paybackWithControls)) + 2, 
-    10
+    Math.ceil(Math.min(
+      paybackWithoutControls === Infinity ? 14 : paybackWithoutControls, 
+      paybackWithControls === Infinity ? 14 : paybackWithControls
+    )) + 2, 
+    14
   );
   
   const cumulativeSavingsWithoutControls = calculateCumulativeSavings(savingsPerYearWithoutControls, years);
@@ -621,8 +514,17 @@ export function formatNumberWithThousandSeparator(value: number): string {
  * V3-11: Parst eine Zahl mit Tausendertrennzeichen
  */
 export function parseNumberWithThousandSeparator(value: string): number {
-  // Remove thousand separators (German uses .)
   const cleanValue = value.replace(/\./g, '').replace(/,/g, '.');
   const parsed = parseFloat(cleanValue);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * V4: Formatiert EUR-Werte für Y-Achse mit Tausenderpunkt (nicht "k")
+ */
+export function formatEurAxis(value: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value) + ' EUR';
 }

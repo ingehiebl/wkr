@@ -7,11 +7,11 @@ import type {
   ExistingLuminaire,
   ControlSettings, 
   InvestmentCosts,
-  ReductionLevel
+  ReductionLevel,
+  LampTypeWithPower
 } from '../types';
 import {
   DEFAULT_PROJECT_DATA,
-  DEFAULT_EXISTING_LUMINAIRE,
   DEFAULT_NEW_LUMINAIRE,
   DEFAULT_CONTROL_SETTINGS,
   DEFAULT_INVESTMENT,
@@ -21,18 +21,16 @@ import {
 } from '../constants';
 
 const STORAGE_KEY = 'wkr-state';
-const STORAGE_VERSION = 3; // v3.0 migration
+const STORAGE_VERSION = 4; // v4.0 migration
 
 // V3-08: Map old reduction values to new midpoint values
 const mapReductionToV3 = (oldValue: number): ReductionLevel => {
-  // Old v2 values: 0, 10, 20, 30, 40
-  // New v3 values: 0, 20, 40.5, 60.5, 85
   if (oldValue === 0) return 0;
-  if (oldValue <= 10) return 20;       // wenig (10-30%) → 20%
-  if (oldValue <= 20) return 20;       // Still wenig
-  if (oldValue <= 30) return 40.5;     // mittel (31-50%) → 40.5%
-  if (oldValue <= 40) return 60.5;     // viel (51-70%) → 60.5%
-  return 85;                           // sehr viel (>70%) → 85%
+  if (oldValue <= 10) return 20;
+  if (oldValue <= 20) return 20;
+  if (oldValue <= 30) return 40.5;
+  if (oldValue <= 40) return 60.5;
+  return 85;
 };
 
 // Migration: v2 ControlSettings → v3 (new reduction levels)
@@ -46,16 +44,14 @@ const migrateControlSettingsV2ToV3 = (settings: unknown): ControlSettings => {
   // v1 format: { daylightEnabled: boolean, motionEnabled: boolean }
   if ('daylightEnabled' in s || 'motionEnabled' in s) {
     return {
-      daylightReductionPercent: (s.daylightEnabled ? 40.5 : 0) as ReductionLevel, // Map "Ja (30%)" to mittel
+      daylightReductionPercent: (s.daylightEnabled ? 40.5 : 0) as ReductionLevel,
       motionReductionPercent: (s.motionEnabled ? 40.5 : 0) as ReductionLevel,
     };
   }
   
-  // v2 format with old values (0, 10, 20, 30, 40) - map to v3
   const daylightVal = s.daylightReductionPercent as number ?? 0;
   const motionVal = s.motionReductionPercent as number ?? 0;
   
-  // Check if it's already a valid v3 value
   const v3Values = CONTROL_REDUCTION_OPTIONS.map(o => o.value);
   const isAlreadyV3 = v3Values.includes(daylightVal as ReductionLevel) && v3Values.includes(motionVal as ReductionLevel);
   
@@ -66,89 +62,138 @@ const migrateControlSettingsV2ToV3 = (settings: unknown): ControlSettings => {
     };
   }
   
-  // Map old values to new v3 values
   return {
     daylightReductionPercent: mapReductionToV3(daylightVal),
     motionReductionPercent: mapReductionToV3(motionVal),
   };
 };
 
-// Migration: v1 existingLuminaires (Luminaire[]) → v2 (ExistingLuminaire[])
+// V4: Map old LampType to new LampTypeWithPower (pick most common wattage)
+const migrateOldLampType = (oldType: string): LampTypeWithPower => {
+  const mapping: Record<string, LampTypeWithPower> = {
+    'T5-549mm': 'T5-549mm-14W',
+    'T5-1149mm': 'T5-1149mm-28W',
+    'T5-1449mm': 'T5-1449mm-35W',
+    'T8-600mm': 'T8-600mm-18W',
+    'T8-1200mm': 'T8-1200mm-36W',
+    'T8-1500mm': 'T8-1500mm-58W',
+  };
+  // If already a v4 key, return as-is
+  if (oldType.match(/\d+W$/)) return oldType as LampTypeWithPower;
+  return mapping[oldType] || 'T8-1200mm-36W';
+};
+
+// Migration: existing luminaires from any version → v4
 const migrateExistingLuminaires = (luminaires: unknown): ExistingLuminaire[] => {
   if (!Array.isArray(luminaires) || luminaires.length === 0) {
     return [createEmptyExistingLuminaire()];
   }
   
-  // Check if already v2 format (has lampType property)
   const first = luminaires[0] as Record<string, unknown>;
-  if ('lampType' in first) {
-    return luminaires as ExistingLuminaire[];
-  }
   
   // v1 format: { id, name, quantity, powerW, lumensNominal }
-  // v2 format: { id, quantity, lampType, flameCount }
-  // Best effort migration - map to closest T8 lamp type based on power
+  if (!('lampType' in first)) {
+    return luminaires.map((lum) => {
+      const l = lum as Record<string, unknown>;
+      const powerW = (l.powerW as number) || 36;
+      let lampType: LampTypeWithPower = 'T8-1200mm-36W';
+      if (powerW <= 14) lampType = 'T5-549mm-14W';
+      else if (powerW <= 18) lampType = 'T8-600mm-18W';
+      else if (powerW <= 28) lampType = 'T5-1149mm-28W';
+      else if (powerW <= 35) lampType = 'T5-1449mm-35W';
+      else if (powerW <= 36) lampType = 'T8-1200mm-36W';
+      else lampType = 'T8-1500mm-58W';
+      
+      return {
+        id: (l.id as string) || Math.random().toString(36).substring(2, 11),
+        quantity: (l.quantity as number) || 1,
+        lampType,
+        flameCount: 1 as const,
+      };
+    });
+  }
+  
+  // v2/v3 format: has lampType but might be old format (e.g. 'T8-1200mm' without wattage)
   return luminaires.map((lum) => {
     const l = lum as Record<string, unknown>;
-    const powerW = (l.powerW as number) || 36;
-    
-    // Map power to closest lamp type
-    let lampType: 'T5-549mm' | 'T5-1149mm' | 'T5-1449mm' | 'T8-600mm' | 'T8-1200mm' | 'T8-1500mm' = 'T8-1200mm';
-    if (powerW <= 14) lampType = 'T5-549mm';
-    else if (powerW <= 18) lampType = 'T8-600mm';
-    else if (powerW <= 28) lampType = 'T5-1149mm';
-    else if (powerW <= 36) lampType = 'T8-1200mm';
-    else if (powerW <= 35) lampType = 'T5-1449mm';
-    else lampType = 'T8-1500mm';
-    
     return {
       id: (l.id as string) || Math.random().toString(36).substring(2, 11),
       quantity: (l.quantity as number) || 1,
-      lampType,
-      flameCount: 1 as const,
+      lampType: migrateOldLampType(l.lampType as string),
+      flameCount: (l.flameCount as 1 | 2 | 3 | 4) || 1,
     };
   });
 };
 
+// V4: Migrate investment costs from v3 (3 fields) to v4 (4 fields)
+const migrateInvestmentCosts = (costs: unknown): InvestmentCosts => {
+  if (!costs || typeof costs !== 'object') return DEFAULT_INVESTMENT;
+  const c = costs as Record<string, unknown>;
+  
+  // Already v4 format
+  if ('installationLuminairesEur' in c) {
+    return {
+      luminairesEur: (c.luminairesEur as number) || 0,
+      installationLuminairesEur: (c.installationLuminairesEur as number) || 0,
+      controlsEur: (c.controlsEur as number) || 0,
+      installationControlsEur: (c.installationControlsEur as number) || 0,
+    };
+  }
+  
+  // v3 format: { luminairesEur, controlsEur, installationEur }
+  return {
+    luminairesEur: (c.luminairesEur as number) || 0,
+    installationLuminairesEur: (c.installationEur as number) || 0,
+    controlsEur: (c.controlsEur as number) || 0,
+    installationControlsEur: 0,
+  };
+};
+
+// V4: Migrate project data (remove maintenance fields)
+const migrateProjectData = (data: unknown): ProjectData => {
+  if (!data || typeof data !== 'object') return DEFAULT_PROJECT_DATA;
+  const d = data as Record<string, unknown>;
+  return {
+    projectName: (d.projectName as string) || '',
+    roomUsage: (d.roomUsage as string) || DEFAULT_PROJECT_DATA.roomUsage,
+    annualOperatingHours: (d.annualOperatingHours as number) || DEFAULT_PROJECT_DATA.annualOperatingHours,
+    electricityPriceEur: (d.electricityPriceEur as number) ?? DEFAULT_PROJECT_DATA.electricityPriceEur,
+    co2Source: (d.co2Source as string) || DEFAULT_PROJECT_DATA.co2Source,
+    co2FactorGPerKwh: (d.co2FactorGPerKwh as number) ?? DEFAULT_PROJECT_DATA.co2FactorGPerKwh,
+  };
+};
+
 const getInitialState = (): WkrState => {
-  // Versuche gespeicherten State zu laden
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      
-      // Check version and migrate if needed
       const version = parsed._version || 1;
       
       if (version < STORAGE_VERSION) {
         console.info(`Migriere WKR-Daten von v${version} zu v${STORAGE_VERSION}...`);
         
-        // Migrate control settings (v1→v2→v3)
         const migratedControlSettings = migrateControlSettingsV2ToV3(parsed.controlSettings);
-        
-        // Migrate existing luminaires (v1→v2, v2 already has lampType)
         const migratedExistingLuminaires = migrateExistingLuminaires(parsed.existingLuminaires);
+        const migratedInvestmentCosts = migrateInvestmentCosts(parsed.investmentCosts);
+        const migratedProjectData = migrateProjectData(parsed.projectData);
         
-        // V3-21: Add photo arrays if missing
         const existingPhotos = parsed.existingPhotos || [];
         const newPhotos = parsed.newPhotos || [];
         
-        // Return migrated state
         return {
-          projectData: { ...DEFAULT_PROJECT_DATA, ...parsed.projectData },
-          existingDefaults: { ...DEFAULT_EXISTING_LUMINAIRE, ...parsed.existingDefaults },
-          newDefaults: { ...DEFAULT_NEW_LUMINAIRE, ...parsed.newDefaults },
+          projectData: migratedProjectData,
+          newDefaults: { ...DEFAULT_NEW_LUMINAIRE, ...(parsed.newDefaults ? { serviceLifeHours: parsed.newDefaults.serviceLifeHours } : {}) },
           existingLuminaires: migratedExistingLuminaires,
           newLuminaires: parsed.newLuminaires || [createEmptyLuminaire()],
           controlSettings: migratedControlSettings,
-          investmentCosts: { ...DEFAULT_INVESTMENT, ...parsed.investmentCosts },
+          investmentCosts: migratedInvestmentCosts,
           companyLogo: parsed.companyLogo || null,
           existingPhotos,
           newPhotos,
         };
       }
       
-      // V3: Ensure photo arrays exist even in current version
       return {
         ...parsed,
         existingPhotos: parsed.existingPhotos || [],
@@ -159,10 +204,8 @@ const getInitialState = (): WkrState => {
     console.warn('Fehler beim Laden des gespeicherten Zustands:', e);
   }
 
-  // Standard-State (v3.0)
   return {
     projectData: DEFAULT_PROJECT_DATA,
-    existingDefaults: DEFAULT_EXISTING_LUMINAIRE,
     newDefaults: DEFAULT_NEW_LUMINAIRE,
     existingLuminaires: [createEmptyExistingLuminaire()],
     newLuminaires: [createEmptyLuminaire()],
@@ -177,7 +220,6 @@ const getInitialState = (): WkrState => {
 export function useWkrState() {
   const [state, setState] = useState<WkrState>(getInitialState);
 
-  // Autosave bei Änderungen (mit Version für Migration)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       try {
@@ -186,23 +228,15 @@ export function useWkrState() {
       } catch (e) {
         console.warn('Fehler beim Speichern:', e);
       }
-    }, 500); // Debounce für 500ms
+    }, 500);
 
     return () => clearTimeout(timeoutId);
   }, [state]);
 
-  // Update Funktionen
   const updateProjectData = useCallback((data: Partial<ProjectData>) => {
     setState((prev) => ({
       ...prev,
       projectData: { ...prev.projectData, ...data },
-    }));
-  }, []);
-
-  const updateExistingDefaults = useCallback((defaults: Partial<LuminaireDefaults>) => {
-    setState((prev) => ({
-      ...prev,
-      existingDefaults: { ...prev.existingDefaults, ...defaults },
     }));
   }, []);
 
@@ -248,7 +282,6 @@ export function useWkrState() {
     }));
   }, []);
 
-  // V3-21: Photo update functions
   const setExistingPhotos = useCallback((photos: string[]) => {
     setState((prev) => ({
       ...prev,
@@ -266,7 +299,6 @@ export function useWkrState() {
   const resetState = useCallback(() => {
     const newState: WkrState = {
       projectData: DEFAULT_PROJECT_DATA,
-      existingDefaults: DEFAULT_EXISTING_LUMINAIRE,
       newDefaults: DEFAULT_NEW_LUMINAIRE,
       existingLuminaires: [createEmptyExistingLuminaire()],
       newLuminaires: [createEmptyLuminaire()],
@@ -283,7 +315,6 @@ export function useWkrState() {
   return {
     state,
     updateProjectData,
-    updateExistingDefaults,
     updateNewDefaults,
     setExistingLuminaires,
     setNewLuminaires,

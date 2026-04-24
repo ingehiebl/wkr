@@ -9,18 +9,15 @@ interface ProjectDataSectionProps {
 }
 
 export const ProjectDataSection: React.FC<ProjectDataSectionProps> = ({ data, onChange }) => {
-  // C02/C03: Neue Logik für Raumnutzung und Stunden/Jahr
   const handleRoomUsageChange = (value: string) => {
     const option = ROOM_USAGE_OPTIONS.find(o => o.label === value);
     
     if (value === 'Benutzerdefiniert') {
-      // Bei "Benutzerdefiniert": Stunden/Jahr leeren
       onChange({
         roomUsage: value,
         annualOperatingHours: 0,
       });
     } else if (option?.hoursPerYear) {
-      // Bei vordefinierter Auswahl: Auto-Fill mit Normwert
       onChange({
         roomUsage: value,
         annualOperatingHours: option.hoursPerYear,
@@ -37,14 +34,14 @@ export const ProjectDataSection: React.FC<ProjectDataSectionProps> = ({ data, on
   };
 
   const isCustomCo2 = data.co2Source === 'Benutzerdefiniert';
+  const isCustomRoom = data.roomUsage === 'Benutzerdefiniert';
 
   return (
     <section className="card">
       <h2 className="card-title">Projektdaten</h2>
       
-      {/* C05: Neues Layout */}
       <div className="project-grid-v2">
-        {/* Zeile 1: Projektname (volle Breite) */}
+        {/* Zeile 1: Projektname */}
         <div className="form-group full-width">
           <label className="form-label">Projektname</label>
           <input
@@ -56,7 +53,7 @@ export const ProjectDataSection: React.FC<ProjectDataSectionProps> = ({ data, on
           />
         </div>
 
-        {/* Zeile 2: Raumnutzung (volle Breite) */}
+        {/* Zeile 2: Raumnutzung */}
         <div className="form-group full-width">
           <label className="form-label">Raumnutzung</label>
           <select
@@ -72,14 +69,13 @@ export const ProjectDataSection: React.FC<ProjectDataSectionProps> = ({ data, on
           </select>
         </div>
 
-        {/* Zeile 3: Stunden/Jahr (volle Breite) */}
-        {/* C03: Immer editierbar, kein disabled mehr */}
+        {/* Zeile 3: Stunden/Jahr - result styling when auto-filled, input styling when custom */}
         <div className="form-group full-width">
           <label className="form-label">Stunden/Jahr</label>
           <div className="input-with-unit">
             <input
               type="number"
-              className="form-input"
+              className={`form-input ${!isCustomRoom ? 'calculated' : ''}`}
               value={data.annualOperatingHours || ''}
               onChange={(e) => onChange({ annualOperatingHours: Number(e.target.value) })}
               placeholder="z.B. 2750"
@@ -131,35 +127,6 @@ export const ProjectDataSection: React.FC<ProjectDataSectionProps> = ({ data, on
               ))}
             </select>
           )}
-        </div>
-
-        {/* Zeile 5: Wartungskosten Bestand + Neu */}
-        <div className="form-group">
-          <label className="form-label">Wartungskosten Bestand</label>
-          <div className="input-with-unit">
-            <input
-              type="number"
-              className="form-input"
-              value={data.maintenanceCostExistingEur}
-              onChange={(e) => onChange({ maintenanceCostExistingEur: Number(e.target.value) })}
-              min={0}
-            />
-            <span className="input-unit">EUR/Jahr</span>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Wartungskosten Neu</label>
-          <div className="input-with-unit">
-            <input
-              type="number"
-              className="form-input"
-              value={data.maintenanceCostNewEur}
-              onChange={(e) => onChange({ maintenanceCostNewEur: Number(e.target.value) })}
-              min={0}
-            />
-            <span className="input-unit">EUR/Jahr</span>
-          </div>
         </div>
       </div>
     </section>

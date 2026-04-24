@@ -13,7 +13,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import type { ComparisonResultV3, PaybackResultV3 } from '../../types';
-import { formatCurrency } from '../../utils/calculations';
+import { formatCurrency, formatEurAxis } from '../../utils/calculations';
 import './ChartsSection.css';
 
 interface ChartsSectionProps {
@@ -21,11 +21,9 @@ interface ChartsSectionProps {
   payback: PaybackResultV3;
 }
 
-// V3-17/V3-18/V3-19/V3-20: Updated for 3-bar/3-line charts with dual payback
-// V3-16: Added IDs for PDF export capture
+// V4: Removed maintenance bars, EUR Tausenderpunkt on Y-axis
 export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, payback }) => {
-  // V3-17: Daten für Kostenvergleich-Balkendiagramm mit 3 Varianten
-  // V3-18: "Stromkosten" instead of "Energiekosten"
+  // V4: Only Stromkosten (no maintenance)
   const costComparisonData = [
     {
       name: 'Stromkosten',
@@ -33,21 +31,8 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
       'Neu ohne Steuerung': comparison.newWithoutControls.energyCostEur,
       'Neu mit Steuerung': comparison.newWithControls.energyCostEur,
     },
-    {
-      name: 'Wartungskosten',
-      'Bestand': comparison.existing.maintenanceCostEur,
-      'Neu ohne Steuerung': comparison.newWithoutControls.maintenanceCostEur,
-      'Neu mit Steuerung': comparison.newWithControls.maintenanceCostEur,
-    },
-    {
-      name: 'Gesamt',
-      'Bestand': comparison.existing.totalCostEur,
-      'Neu ohne Steuerung': comparison.newWithoutControls.totalCostEur,
-      'Neu mit Steuerung': comparison.newWithControls.totalCostEur,
-    },
   ];
 
-  // V3-19: Daten für Cashflow-Liniendiagramm mit 3 Linien
   const maxYears = Math.min(
     Math.max(
       payback.cumulativeSavingsWithoutControls.length,
@@ -56,30 +41,22 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
     15
   );
   
-  // V3-19: Three lines for cumulative electricity costs comparison
-  // Starting from 0, showing cumulative costs over time
   const cashflowData = Array.from({ length: maxYears }, (_, i) => ({
     year: i,
-    // Cumulative electricity costs for Bestand
     'Stromkosten Bestand': comparison.existing.energyCostEur * i,
-    // Cumulative costs for Neu ohne Steuerung (with initial investment)
     'Stromkosten Neu ohne Steuerung': comparison.newWithoutControls.energyCostEur * i + payback.investment.withoutControls,
-    // Cumulative costs for Neu mit Steuerung (with initial investment including controls)
     'Stromkosten Neu mit Steuerung': comparison.newWithControls.energyCostEur * i + payback.investment.withControls,
   }));
 
-  // Alternative: Net Cashflow view (savings minus investment)
   const netCashflowData = Array.from({ length: maxYears }, (_, i) => ({
     year: i,
     'Netto-Cashflow ohne Steuerung': payback.netCashflowWithoutControls[i] || 0,
     'Netto-Cashflow mit Steuerung': payback.netCashflowWithControls[i] || 0,
   }));
 
+  // V4: EUR with Tausenderpunkt (not "k")
   const formatYAxis = (value: number) => {
-    if (Math.abs(value) >= 1000) {
-      return `${(value / 1000).toFixed(0)}k`;
-    }
-    return value.toString();
+    return formatEurAxis(value);
   };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -114,7 +91,6 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
     return null;
   };
 
-  // Check if controls are actually being used
   const hasControls = comparison.newWithControls.energyKwh !== comparison.newWithoutControls.energyKwh;
 
   return (
@@ -122,7 +98,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
       <h2 className="card-title">Grafiken</h2>
 
       <div className="charts-grid">
-        {/* V3-17: Kostenvergleich mit 3 Balken */}
+        {/* Grafik A: Kostenvergleich */}
         <div className="chart-container" id="chart-cost-comparison">
           <h3 className="chart-title">Jährliche Kosten: Bestand vs. Neu</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -149,7 +125,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
           </div>
         </div>
 
-        {/* V3-19: Kumulierte Stromkosten über Zeit mit 3 Linien */}
+        {/* Grafik B: Kumulierte Stromkosten */}
         <div className="chart-container" id="chart-cumulative-costs">
           <h3 className="chart-title">Kumulierte Stromkosten im Vergleich</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -163,7 +139,6 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
               <YAxis tickFormatter={formatYAxis} tick={{ fill: '#6b7280', fontSize: 12 }} />
               <Tooltip content={<CashflowTooltip />} />
               <Legend />
-              {/* V3-19: Three lines for cost comparison */}
               <Line 
                 type="monotone" 
                 dataKey="Stromkosten Bestand" 
@@ -193,7 +168,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
           </div>
         </div>
 
-        {/* V3-20: Netto-Cashflow mit beiden Varianten und Break-Even-Punkten */}
+        {/* Grafik C: Netto-Cashflow */}
         <div className="chart-container chart-container-full" id="chart-net-cashflow">
           <h3 className="chart-title">Netto-Cashflow (Einsparung - Investition)</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -209,7 +184,6 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ comparison, paybac
               <Legend />
               <ReferenceLine y={0} stroke="#1E2A38" strokeDasharray="3 3" />
               
-              {/* V3-20: Break-Even markers for both variants */}
               {payback.paybackYears.withoutControls !== Infinity && payback.paybackYears.withoutControls <= maxYears && (
                 <ReferenceLine 
                   x={Math.ceil(payback.paybackYears.withoutControls)} 
